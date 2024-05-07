@@ -95,7 +95,7 @@ def has_manual_reset(revlogs: List[CardStatsResponse.StatsRevlogEntry]):
         ):
             return True
         last_kind = r.review_kind
-    return False
+    return False 
 
 
 def get_fuzz_range(interval, elapsed_days):

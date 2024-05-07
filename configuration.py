@@ -10,7 +10,7 @@ AUTO_DISPERSE_AFTER_SYNC = "auto_disperse_after_sync"
 AUTO_DISPERSE = "auto_disperse"
 MATURE_IVL = "mature_ivl"
 DEBUG_NOTIFY = "debug_notify"
-FSRS_STATS = "fsrs_stats"
+SCHEDULER_STATS = "scheduler_stats"
 
 
 def load_config():
@@ -110,10 +110,10 @@ class Config:
         self.save()
 
     @property
-    def fsrs_stats(self):
-        return self.data[FSRS_STATS]
+    def scheduler_stats(self):
+        return self.data[SCHEDULER_STATS]
 
-    @fsrs_stats.setter
-    def fsrs_stats(self, value):
-        self.data[FSRS_STATS] = value
+    @scheduler_stats.setter
+    def scheduler_stats(self, value):
+        self.data[SCHEDULER_STATS] = value
         self.save()

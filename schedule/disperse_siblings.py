@@ -24,7 +24,7 @@ def get_siblings(did=None, filter_flag=False, filtered_nid_string=""):
         THEN did
         ELSE odid
         END,
-        json_extract(data, '$.s'),
+        ivl,
         CASE WHEN odid==0 THEN due ELSE odue END
     FROM cards
     WHERE nid IN (
@@ -33,29 +33,26 @@ def get_siblings(did=None, filter_flag=False, filtered_nid_string=""):
         WHERE type = 2
         AND queue != -1
         AND data != ''
-        AND json_extract(data, '$.s') IS NOT NULL
         {nid_query if filter_flag else ""}
         GROUP BY nid
         HAVING count(*) > 1
     )
-    AND data != ''
-    AND json_extract(data, '$.s') IS NOT NULL
     AND type = 2
     AND queue != -1
     {did_query if did is not None else ""}
     """
     )
     nid_siblings_dict = {}
-    for cid, nid, did, stability, due in siblings:
+    for cid, nid, did, ivl, due in siblings:
         if nid not in nid_siblings_dict:
             nid_siblings_dict[nid] = []
         nid_siblings_dict[nid].append(
             (
                 cid,
                 did,
-                stability,
+                ivl,
                 due,
-                mw.col.decks.config_dict_for_deck_id(did)["desiredRetention"],
+                0.85,
                 mw.col.decks.config_dict_for_deck_id(did)["rev"]["maxIvl"],
             )
         )
@@ -71,12 +68,10 @@ def get_siblings_when_review(card: Card):
         THEN did
         ELSE odid
         END,
-        json_extract(data, '$.s'),
+        ivl,
         CASE WHEN odid==0 THEN due ELSE odue END
     FROM cards
     WHERE nid = {card.nid}
-    AND data != ''
-    AND json_extract(data, '$.s') IS NOT NULL
     AND type = 2
     AND queue != -1
     """
@@ -84,7 +79,7 @@ def get_siblings_when_review(card: Card):
     siblings = map(
         lambda x: x
         + [
-            mw.col.decks.config_dict_for_deck_id(x[1])["desiredRetention"],
+            0.85,
             mw.col.decks.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
         ],
         siblings,
@@ -92,10 +87,10 @@ def get_siblings_when_review(card: Card):
     return list(siblings)
 
 
-def get_due_range(cid, stability, due, desired_retention, maximum_interval):
+def get_due_range(cid, ivl, due, desired_retention, maximum_interval):
     card = mw.col.get_card(cid)
     last_review = get_last_review_date(card)
-    new_ivl = int(round(9 * stability * (1 / desired_retention - 1)))
+    new_ivl = int(round(9 * ivl * (1 / desired_retention - 1)))
     new_ivl = min(new_ivl, maximum_interval)
 
     if new_ivl <= 2.5:
@@ -120,8 +115,8 @@ def get_due_range(cid, stability, due, desired_retention, maximum_interval):
 
 def disperse(siblings):
     due_ranges_last_review = {
-        cid: get_due_range(cid, stability, due, dr, max_ivl)
-        for cid, _, stability, due, dr, max_ivl in siblings
+        cid: get_due_range(cid, ivl, due, dr, max_ivl)
+        for cid, _, ivl, due, dr, max_ivl in siblings
     }
     due_ranges = {
         cid: due_range for cid, (due_range, _) in due_ranges_last_review.items()
@@ -139,10 +134,6 @@ def disperse(siblings):
 def disperse_siblings(
     did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
 ):
-    if not mw.col.get_config("fsrs"):
-        tooltip("Please enable FSRS first")
-        return None
-
     start_time = time.time()
 
     def on_done(future):
@@ -209,10 +200,6 @@ def disperse_siblings_backgroud(
 
 
 def disperse_siblings_when_review(reviewer, card: Card, ease):
-    if not mw.col.get_config("fsrs"):
-        tooltip("Please enable FSRS first")
-        return
-
     config = Config()
     config.load()
     if not config.auto_disperse:

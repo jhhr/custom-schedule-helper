@@ -8,7 +8,7 @@ def get_desired_postpone_cnt_with_response(safe_cnt, did):
     notification_text = f"{'For this deck' if did else 'For this collection'}, it is relatively safe to postpone up to {safe_cnt} cards.\n"
     warning_text = "You can postpone more cards if you wish, but it is not recommended.\nKeep in mind that whenever you use Postpone or Advance, you depart from the optimal scheduling.\n"
     info_text = (
-        "This feature only affects the cards that have been scheduled by FSRS4Anki."
+        "This feature only affects the cards that have been scheduled by Custom Schedule."
     )
     (s, r) = getText(
         inquire_text + notification_text + warning_text + info_text, default="10"
@@ -19,10 +19,6 @@ def get_desired_postpone_cnt_with_response(safe_cnt, did):
 
 
 def postpone(did):
-    if not mw.col.get_config("fsrs"):
-        tooltip("Please enable FSRS first")
-        return
-
     DM = DeckManager(mw.col)
     if did is not None:
         did_list = ids2str(DM.deck_and_child_ids(did))
@@ -35,8 +31,8 @@ def postpone(did):
             THEN did
             ELSE odid
             END,
+            factor,
             ivl,
-            json_extract(data, '$.s'),
             CASE WHEN odid==0
             THEN {mw.col.sched.today} - (due - ivl)
             ELSE {mw.col.sched.today} - (odue - ivl)
@@ -44,8 +40,6 @@ def postpone(did):
             json_extract(data, '$.dr')
         FROM cards
         WHERE data != ''
-        AND json_extract(data, '$.s') IS NOT NULL
-        AND json_extract(data, '$.dr') IS NOT NULL
         AND due <= {mw.col.sched.today}
         AND queue = {QUEUE_TYPE_REV}
         {"AND did IN %s" % did_list if did is not None else ""}
@@ -54,26 +48,22 @@ def postpone(did):
     # x[0]: cid
     # x[1]: did
     # x[2]: interval
-    # x[3]: stability
+    # x[3]: factor
     # x[4]: elapsed days
-    # x[5]: desired retention
-    # x[6]: current retention
-    # x[7]: max interval
+    # x[5]: max interval
     cards = map(
         lambda x: (
             x
             + [
-                power_forgetting_curve(x[4], x[3]),
                 DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
             ]
         ),
         cards,
     )
-    # sort by (elapsed_days / scheduled_days - 1)
-    # = ln(current retention)/ln(requested retention)-1, -interval (ascending)
-    cards = sorted(cards, key=lambda x: ((1 / x[6] - 1) / (1 / x[5] - 1) - 1, -x[2]))
+    # sort by (elapsed_days / interval - 1), -interval (ascending)
+    cards = sorted(cards, key=lambda x: (x[4] / x[2] - 1, -x[2]))
     safe_cnt = len(
-        list(filter(lambda x: (1 / x[6] - 1) / (1 / x[5] - 1) - 1 < 0.15, cards))
+        list(filter(lambda x: x[4] / x[2] - 1- 1 < 0.15, cards))
     )
 
     (desired_postpone_cnt, resp) = get_desired_postpone_cnt_with_response(safe_cnt, did)
@@ -92,8 +82,7 @@ def postpone(did):
     start_time = time.time()
 
     cnt = 0
-    min_retention = 1
-    for cid, did, ivl, stability, elapsed_days, _, _, max_ivl in cards:
+    for cid, did, ivl, _, elapsed_days, max_ivl in cards:
         if cnt >= desired_postpone_cnt:
             break
 
@@ -111,11 +100,8 @@ def postpone(did):
         mw.col.merge_undo_entries(undo_entry)
         cnt += 1
 
-        new_retention = power_forgetting_curve(new_ivl, stability)
-        min_retention = min(min_retention, new_retention)
-
     tooltip(
-        f"""{cnt} cards postponed in {time.time() - start_time:.2f} seconds. min retention: {min_retention:.2%}"""
+        f"""{cnt} cards postponed in {time.time() - start_time:.2f} seconds."""
     )
     mw.progress.finish()
     mw.col.reset()

@@ -1,0 +1,1 @@
+{"config": {"load_balance": true, "free_days": [], "days_to_reschedule": 7, "auto_reschedule_after_sync": true, "auto_disperse_after_sync": true, "auto_disperse": true, "mature_ivl": 21, "debug_notify": false, "fsrs_stats": true}, "disabled": true, "mod": 0, "conflicts": [], "max_point_version": 0, "min_point_version": 0, "branch_index": 0, "update_enabled": true}

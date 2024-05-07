@@ -1,13 +1,13 @@
 from ..utils import *
 from ..configuration import Config
-from anki.cards import Card, FSRSMemoryState
+from anki.cards import Card
 from anki.decks import DeckManager
 from anki.utils import ids2str, int_version
 
-
-class FSRS:
+DAYS_UPPER = 225
+LOG = FALSE
+class Scheduler:
     max_ivl: int
-    dr: float
     enable_load_balance: bool
     free_days: List[int]
     due_cnt_perday_from_first_day: Dict[int, int]
@@ -17,7 +17,6 @@ class FSRS:
 
     def __init__(self) -> None:
         self.max_ivl = 36500
-        self.dr = 0.9
         self.enable_load_balance = False
         self.free_days = []
         self.elapsed_days = 0
@@ -93,36 +92,39 @@ class FSRS:
                     min_num_cards = num_cards
             return best_ivl
 
-    def next_interval(self, stability, retention, max_ivl):
-        new_interval = self.apply_fuzz(9 * stability * (1 / retention - 1))
+    def next_interval(self, max_ivl):
+        card = self.card
+        # factor is stored as an Integer of parts per 1000, convert to the actual multiplier
+        factor = card.factor / 1000
+        min_mod_factor = math.sqrt(factor)
+        adj_days_upper = DAYS_UPPER * factor
+
+        revs_ivls = mw.col.db.list("select ivl from revlog where cid = ? and "
+                          "type IN (0, 1, 2, 3)", card.id)
+        last_ivl = revs_ivls[len(revs_ivls) - 1]
+
+        ratio = min(last_ivl / adj_days_upper, 1)
+        mod_factor = min(factor, factor * (1 - ratio) + min_mod_factor * ratio)
+        mod_ivl = last_ivl * mod_factor
+        new_interval = self.apply_fuzz(mod_ivl)
+        if (LOG):
+            print("")
+            print("card.id", card.id)
+            print("adj_days_upper", adj_days_upper)
+            print("ratio", ratio)
+            print("min_mod_factor", min_mod_factor)
+            print("mod_factor", mod_factor)
+            print("cur_ivl", card.ivl)
+            print("last_ivl", last_ivl)
+            print("mod_ivl", mod_ivl)
+            print("new_interval", new_interval)
         return min(max(int(round(new_interval)), 1), max_ivl)
 
     def set_card(self, card: Card):
         self.card = card
 
-    def memory_state_from_sm2(self, ease_factor, interval, requestretention):
-        if self.version[0] == 3:
-            stability = interval * math.log(0.9) / math.log(requestretention)
-            difficulty = 11.0 - (ease_factor - 1.0) / (
-                math.exp(self.w[6])
-                * math.pow(stability, self.w[7])
-                * (math.exp((1 - requestretention) * self.w[8]) - 1)
-            )
-        elif self.version[0] == 4:
-            stability = interval / (9 * (1 / requestretention - 1))
-            difficulty = 11.0 - (ease_factor - 1.0) / (
-                math.exp(self.w[8])
-                * math.pow(stability, -self.w[9])
-                * (math.exp((1 - requestretention) * self.w[10]) - 1)
-            )
-        return stability, difficulty
-
 
 def reschedule(did, recent=False, filter_flag=False, filtered_cids={}):
-    if not mw.col.get_config("fsrs"):
-        tooltip("Please enable FSRS first")
-        return None
-
     start_time = time.time()
 
     def on_done(future):
@@ -149,10 +151,10 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}
     )
 
     cnt = 0
-    fsrs = FSRS()
+    scheduler = Scheduler()
     if config.load_balance:
-        fsrs.set_load_balance()
-        fsrs.free_days = config.free_days
+        scheduler.set_load_balance()
+        scheduler.free_days = config.free_days
     cancelled = False
     DM = DeckManager(mw.col)
     if did is not None:
@@ -186,26 +188,23 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}
     )
     # x[0]: cid
     # x[1]: did
-    # x[2]: desired retention
-    # x[3]: max interval
-    # x[4]: weights
+    # x[2]: max interval
+    # x[3]: weights
     cards = map(
         lambda x: (
             x
             + [
-                DM.config_dict_for_deck_id(x[1])["desiredRetention"],
                 DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
             ]
         ),
         cards,
     )
 
-    for cid, _, desired_retention, max_interval in cards:
+    for cid, _, max_interval in cards:
         if cancelled:
             break
-        fsrs.dr = desired_retention
-        fsrs.max_ivl = max_interval
-        card = reschedule_card(cid, fsrs, filter_flag)
+        scheduler.max_ivl = max_interval
+        card = reschedule_card(cid, scheduler, filter_flag)
         if card is None:
             continue
         mw.col.update_card(card)
@@ -221,33 +220,22 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}
     return f"{cnt} cards rescheduled"
 
 
-def reschedule_card(cid, fsrs: FSRS, recompute=False):
+def reschedule_card(cid, scheduler: Scheduler, recompute=False):
     card = mw.col.get_card(cid)
-    if recompute:
-        memory_state = mw.col.compute_memory_state(cid)
-        s = memory_state.stability
-        d = memory_state.difficulty
-        card.memory_state = FSRSMemoryState(stability=s, difficulty=d)
-    elif card.memory_state:
-        memory_state = card.memory_state
-        s = memory_state.stability
-        d = memory_state.difficulty
-    else:
-        return None
 
     new_custom_data = {"v": "reschedule"}
     card.custom_data = json.dumps(new_custom_data)
 
     if card.type == CARD_TYPE_REV:
-        fsrs.set_card(card)
-        fsrs.set_fuzz_factor(cid, card.reps)
-        new_ivl = fsrs.next_interval(s, fsrs.dr, fsrs.max_ivl)
+        scheduler.set_card(card)
+        scheduler.set_fuzz_factor(cid, card.reps)
+        new_ivl = scheduler.next_interval(scheduler.max_ivl)
         due_before = max(card.odue if card.odid else card.due, mw.col.sched.today)
         card = update_card_due_ivl(card, new_ivl)
         due_after = max(card.odue if card.odid else card.due, mw.col.sched.today)
-        if fsrs.enable_load_balance:
-            fsrs.due_cnt_perday_from_first_day[due_before] -= 1
-            fsrs.due_cnt_perday_from_first_day[due_after] = (
-                fsrs.due_cnt_perday_from_first_day.get(due_after, 0) + 1
+        if scheduler.enable_load_balance:
+            scheduler.due_cnt_perday_from_first_day[due_before] -= 1
+            scheduler.due_cnt_perday_from_first_day[due_after] = (
+                scheduler.due_cnt_perday_from_first_day.get(due_after, 0) + 1
             )
     return card
