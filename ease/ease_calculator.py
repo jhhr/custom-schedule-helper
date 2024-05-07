@@ -70,6 +70,10 @@ def calculate_ease(config, starting_ease_factor, card_settings, leashed=True):
         average_ease = starting_ease_factor
     suggested_factor = average_ease * delta_ratio
 
+    # Prevent divide by zero
+    if suggested_factor == 0:
+        return current_ease_factor
+
     if leashed:
     # factor will increase
         up_leash_multiplier =  (((max_ease / current_ease_factor) ** (1/3))
