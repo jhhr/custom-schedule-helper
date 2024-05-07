@@ -1,10 +1,11 @@
 from aqt.gui_hooks import sync_will_start, sync_did_finish
 from .schedule.reschedule import reschedule
 from .schedule.disperse_siblings import disperse_siblings
+from .ease.auto_ease_factor import adjust_ease
 from .configuration import Config
 from .utils import *
 from anki.utils import ids2str
-
+from anki.lang import _
 
 def create_comparelog(local_rids: List[int]) -> None:
     local_rids.clear()
@@ -30,7 +31,6 @@ def review_cid_remote(local_rids: List[int]):
 def auto_reschedule(local_rids: List[int], texts: List[str]):
     if len(local_rids) == 0:
         return
-    texts.clear()
     config = Config()
     config.load()
     if not config.auto_reschedule_after_sync:
@@ -83,10 +83,26 @@ def auto_disperse(local_rids: List[int], texts: List[str]):
         return fut.result()
 
 
+def auto_adjust_ease(local_rids: List[int], texts: List[str]):
+    if len(local_rids) == 0:
+        return
+
+    remote_reviewed_cids = review_cid_remote(local_rids)
+
+    fut = adjust_ease(
+        card_ids=remote_reviewed_cids,
+    )
+
+    if fut:
+        # wait for adjustment to finish
+        texts.append(fut.result())
+
+
 def init_sync_hook():
     local_rids = []
     texts = []
 
     sync_will_start.append(lambda: create_comparelog(local_rids))
+    sync_did_finish.append(lambda: auto_adjust_ease(local_rids, texts))
     sync_did_finish.append(lambda: auto_reschedule(local_rids, texts))
     sync_did_finish.append(lambda: auto_disperse(local_rids, texts))

@@ -1,22 +1,27 @@
 # Custom Schedule Helper
 
 Custom Schedule Helper is an Anki add-on duplicating all the functionalites of the F4SRSAnki Helper
-but instead a different custom scheduling setup. It has the same six main features:
+but instead a different custom scheduling setup. It has the same six main features + one extra
 
-- **Reschedule** cards based on their entire review histories.
+- **Reschedule** cards based on their previous review.
 - **Postpone** a selected number of due cards.
 - **Advance** a selected number of undue cards.
 - **Balance** the load during rescheduling (based on fuzz).
 - **No Anki** on Free Days (such as weekends) during rescheduling (based on load balance).
 - **Disperse** Siblings (cards with the same note) to avoid interference & reminder.
+- **Auto Ease Factor** changes the ease factor based on reviews very gently. Uses entire review history.
 
 
 
 # Installation
 
+Just install the addon and use my scheduler.
+Or...
+
 1. Write your own custom scheduling js code and apply it. Mine is included in this repository in `custom_scheduler.js`
-2. Edit this addon and duplicate that functionality in the `Scheduler.next_interval` function in
-   python.
+2. Edit this addon and duplicate that functionality in the `Scheduler.next_interval` function in `schedule/reschule.py`
+3. Also edit the Auto Ease Factor logic in `ease/ease_calculator.py` if you don't like the
+   aggressively attenuated ease changes.
 
 # Usage
 
@@ -80,16 +85,15 @@ In Anki, some templates will generate multiple cards related in content from the
 
 ## Other features
 - **Auto reschedule cards reviewed on other devices after sync:** This option is useful if you do some (or all) of your reviews on platforms that don't support FSRS such as AnkiDroid or AnkiWeb. If this option is enabled, the reviews synced from the other devices will be automatically rescheduled according to the FSRS algorithm. If you are relying on this feature, it is recommended to sync the reviews daily for the best results.
-- **Auto reschedule the card you just reviewed (<=2.1.66):** If you enable this option, every card that you review will be rescheduled. Enabling this option is not essential for using FSRS. It is mainly intended for gradually transitioning your old cards to FSRS when starting to use FSRS. The other option for transitioning old cards to FSRS is to reschedule all cards, but this tends to induce a huge backlog for many people. Other advantages of enabling the "Auto reschedule the card you just reviewed" option include:
+- **Auto reschedule the card you just reviewed (<=2.1.66):** If you enable this option, every card that you review will be rescheduled. Enabling this option is not essential for using Custom Schedule. It is mainly intended for gradually transitioning your old cards to FSRS when starting to use Custom Schedule. The other option for transitioning old cards to FSRS is to reschedule all cards, but this tends to induce a huge backlog for many people. Other advantages of enabling the "Auto reschedule the card you just reviewed" option include:
     - Load balance and free days are applied when rescheduling.
-    - It allows you to use learning or relearning steps longer than or equal to 1 day without breaking the scheduling. However, for best results, it is not recommended to use such steps even with this option enabled because FSRS can determine the next intervals more accurately.
+    - It allows you to use learning or relearning steps longer than or equal to 1 day without breaking the scheduling. However, for best results, it is not recommended to use such steps even with this option enabled because Custom Schedule can determine the next intervals more accurately.
 
     However, this option also has some disadvantages, which include:
     - The intervals displayed above the answer buttons may be inconsistent with the real interval after rescheduling, though the real ones will be more optimal.
     - It might have a small effect on the responsiveness of Anki and introduce lags because it needs more calculations for each review and causes constant queue rebuilding.
     - If it is enabled, after answering a card, it requires two undo key presses to actually undo answering the card.
 - **Auto disperse siblings:** It automatically disperses siblings after each review and after sync (if auto-reschedule after sync is enabled).
-- **Reschedule all cards:** This option is used to reschedule all the cards in the decks in which FSRS is enabled. It should only be used after you have installed FSRS for the first time and/or updated your parameters.
+- **Reschedule all cards:** This option is used to reschedule all the cards in the decks in which Custom Schedule is enabled. It should only be used after you have installed Custom Schedule for the first time and/or updated your parameters.
 - **Reschedule cards reviewed in the last 7 days:** This option can be used to reschedule the cards that were reviewed in the last few days. The number of days can be adjusted in the add-on config.
-- **Update scheduler:** This option can be used to check for updates to the FSRS scheduler and update the scheduler code if an update is available. While updating the scheduler code, this option preserves your existing configuration.
 

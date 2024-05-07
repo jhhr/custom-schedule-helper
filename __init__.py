@@ -9,8 +9,10 @@ from .schedule.postpone import postpone
 from .schedule.advance import advance
 from .schedule.disperse_siblings import disperse_siblings
 from .schedule.free_days import free_days
-from .schedule import init_review_hook
+from .schedule import init_schedule_review_hook
 from .configuration import Config, run_on_configuration_change
+from .ease.export import export_ease_factors, import_ease_factors
+from .ease import init_ease_adjust_review_hook
 
 
 """
@@ -112,6 +114,9 @@ add_action_to_gear(postpone, "Postpone cards")
 menu_advance = build_action(advance, "Advance cards in all decks")
 add_action_to_gear(advance, "Advance cards")
 
+add_action_to_gear(export_ease_factors, "Export Ease Factors (AEF)")
+add_action_to_gear(import_ease_factors, "Import Ease Factors (AEF)")
+
 menu_disperse_siblings = build_action(disperse_siblings, "Disperse all siblings")
 
 
@@ -185,4 +190,5 @@ def configuration_changed():
 
 
 init_sync_hook()
-init_review_hook()
+init_schedule_review_hook()
+init_ease_adjust_review_hook()
