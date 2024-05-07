@@ -95,14 +95,16 @@ class Scheduler:
     def next_interval(self, max_ivl):
         card = self.card
 
-        revs = mw.col.db.all("select lastIvl, ease from revlog where cid = ? and "
+        revs = mw.col.db.all("select ivl, ease, factor from revlog where cid = ? and "
                           "type IN (0, 1, 2, 3)", card.id)
         if len(revs) > 1:
             prev_rev = revs[len(revs) - 1]
         else:
             return self.apply_fuzz(card.ivl)
-        prev_lastIvl = prev_rev[0]
+        
+        prev_ivl = prev_rev[0]
         prev_rev_ease = prev_rev[1]
+        prev_factor = prev_rev[2]
 
         factor = None
         rev_conf = get_rev_conf(card)
@@ -115,18 +117,18 @@ class Scheduler:
                 return self.apply_fuzz(card.ivl)
         elif prev_rev_ease == 3:
             # factor is stored as an Integer of parts per 1000, convert to the actual multiplier
-            factor = card.factor / 1000
+            factor = prev_factor / 1000
         elif prev_rev_ease == 4:
-            factor = (card.factor / 1000) * rev_conf["deck_easy_fct"]
+            factor = (prev_factor / 1000) * rev_conf["deck_easy_fct"]
 
         min_mod_factor = math.sqrt(factor)
         adj_days_upper = DAYS_UPPER * factor
 
-        ratio = min(prev_lastIvl / adj_days_upper, 1)
+        ratio = min(prev_ivl / adj_days_upper, 1)
         mod_factor = min(factor, factor * (1 - ratio) + min_mod_factor * ratio)
-        mod_ivl = min(card.ivl, prev_lastIvl * mod_factor)
+        mod_ivl = min(card.ivl, prev_ivl * mod_factor)
         new_interval = self.apply_fuzz(mod_ivl)
-        if (LOG):
+        if LOG:
             print("")
             print("card.id", card.id)
             print("adj_days_upper", adj_days_upper)
@@ -135,7 +137,8 @@ class Scheduler:
             print("mod_factor", mod_factor)
             print("cur_ivl", card.ivl)
             print("prev_rev_ease", prev_rev_ease)
-            print("prev_lastIvl", prev_lastIvl)
+            print("prev_ivl", prev_ivl)
+            print("prev_factor", prev_factor)
             print("mod_ivl", mod_ivl)
             print("new_interval", new_interval)
         return min(max(int(round(new_interval)), 1), max_ivl)
