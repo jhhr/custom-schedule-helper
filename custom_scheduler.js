@@ -2,19 +2,17 @@
 const log = true;
 if (log) console.log(JSON.stringify(states, null, 4));
 
-// Don't adjust intervals for new, learning or relearning cards
+// Don't adjust intervals for new, learning cards
 if (states.current.normal?.new 
-  || states.current.normal?.learning
-  || states.current.normal?.relearning
+  || (states.current.normal?.learning)
   || states.current.filtered?.rescheduling.originalState.new
-  || states.current.filtered?.rescheduling.originalState.learning
-  || states.current.filtered?.rescheduling.originalState.relearning) return;
+  || states.current.filtered?.rescheduling.originalState.learning) return;
 
 // Do adjust for reviews
 const revObj = states.current.normal?.review
-  // || states.current.normal?.relearning?.review
-  || states.current.filtered?.rescheduling?.originalState?.review
-// || states.current.filtered?.rescheduling?.originalState?.relearning.review
+   || states.current.normal?.relearning?.review
+   || states.current.filtered?.rescheduling?.originalState?.review
+   || states.current.filtered?.rescheduling?.originalState?.relearning.review
 
 const curFct = revObj?.easeFactor;
 const curRevIvl = revObj?.scheduledDays;
