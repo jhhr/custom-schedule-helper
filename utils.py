@@ -131,3 +131,35 @@ def rotate_number_by_k(N, K):
     K = K % length
     rotated = num[K:] + num[:K]
     return int(rotated)
+
+
+def get_rev_conf(card: Card):
+    deck_id = card.did
+    if card.odid:
+        deck_id = card.odid
+    try:
+        deck_easy_fct = mw.col.decks.config_dict_for_deck_id(
+                deck_id)['rev']['ease4']
+    except KeyError:
+        deck_easy_fct = 1.3
+    try:
+        deck_hard_fct = mw.col.decks.config_dict_for_deck_id(
+                deck_id)['rev']['hardFactor']
+    except KeyError:
+        deck_hard_fct = 1.2
+    try:
+        deck_max_ivl = mw.col.decks.config_dict_for_deck_id(
+                deck_id)['rev']['maxIvl']
+    except KeyError:
+        deck_max_ivl = 3650        
+    try:
+        deck_again_fct = mw.col.decks.config_dict_for_deck_id(
+                deck_id)['lapse']['mult']
+    except KeyError:
+        deck_max_ivl = 0
+    return {
+        'deck_easy_fct': deck_easy_fct,
+        'deck_hard_fct': deck_hard_fct,
+        'deck_max_ivl': deck_max_ivl,
+        'deck_again_fct': deck_again_fct,
+    }
