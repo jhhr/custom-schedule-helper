@@ -11,6 +11,14 @@ AUTO_DISPERSE = "auto_disperse"
 MATURE_IVL = "mature_ivl"
 DEBUG_NOTIFY = "debug_notify"
 SCHEDULER_STATS = "scheduler_stats"
+LEASH = "leash"
+MAX_EASE = "max_ease"
+MIN_EASE = "min_ease"
+MOVING_AVERAGE_WEIGHT = "moving_average_weight"
+STATS_ENABLED = "stats_enabled"
+STATS_DURATION = "stats_duration"
+TARGET_RATIO = "target_ratio"
+REVIEWS_ONLY = "reviews_only"
 
 
 def load_config():
@@ -117,3 +125,77 @@ class Config:
     def scheduler_stats(self, value):
         self.data[SCHEDULER_STATS] = value
         self.save()
+
+    @property
+    def leash(self):
+        return self.data[LEASH]
+
+    @leash.setter
+    def leash(self, value):
+        self.data[LEASH] = value
+        self.save()
+
+    @property
+    def max_ease(self):
+        return self.data[MAX_EASE]
+
+    @max_ease.setter
+    def max_ease(self, value):
+        self.data[MAX_EASE] = value
+        self.save()
+
+    @property
+    def min_ease(self):
+        return self.data[MIN_EASE]
+
+    @min_ease.setter
+    def min_ease(self, value):
+        self.data[MIN_EASE] = value
+        self.save()
+
+    @property
+    def moving_average_weight(self):
+        return self.data[MOVING_AVERAGE_WEIGHT]
+
+    @moving_average_weight.setter
+    def moving_average_weight(self, value):
+        self.data[MOVING_AVERAGE_WEIGHT] = value
+        self.save()
+
+    @property
+    def stats_enabled(self):
+        return self.data[STATS_ENABLED]
+
+    @stats_enabled.setter
+    def stats_enabled(self, value):
+        self.data[STATS_ENABLED] = value
+        self.save()
+
+    @property
+    def stats_duration(self):
+        return self.data[STATS_DURATION]
+
+    @stats_duration.setter
+    def stats_duration(self, value):
+        self.data[STATS_DURATION] = value
+        self.save()
+
+    @property
+    def target_ratio(self):
+        return self.data[TARGET_RATIO]
+
+    @target_ratio.setter
+    def target_ratio(self, value):
+        self.data[TARGET_RATIO] = value
+        self.save()
+
+    @property
+    def reviews_only(self):
+        return self.data[REVIEWS_ONLY]
+
+    @reviews_only.setter
+    def reviews_only(self, value):
+        self.data[REVIEWS_ONLY] = value
+        self.save()
+
+    

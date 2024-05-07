@@ -7,7 +7,7 @@ free_days = None
 version = None
 
 
-def get_siblings(did=None, filter_flag=False, filtered_nid_string=""):
+def get_siblings(config, did=None, filter_flag=False, filtered_nid_string=""):
     if did is not None:
         did_list = ids2str(mw.col.decks.deck_and_child_ids(did))
         did_query = f"AND did IN {did_list}"
@@ -52,7 +52,7 @@ def get_siblings(did=None, filter_flag=False, filtered_nid_string=""):
                 did,
                 ivl,
                 due,
-                0.85,
+                config.target_ratio,
                 mw.col.decks.config_dict_for_deck_id(did)["rev"]["maxIvl"],
             )
         )
@@ -60,6 +60,8 @@ def get_siblings(did=None, filter_flag=False, filtered_nid_string=""):
 
 
 def get_siblings_when_review(card: Card):
+    config = Config()
+    config.load()
     siblings = mw.col.db.all(
         f"""
     SELECT 
@@ -79,7 +81,7 @@ def get_siblings_when_review(card: Card):
     siblings = map(
         lambda x: x
         + [
-            0.85,
+            config.target_ratio,
             mw.col.decks.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
         ],
         siblings,
@@ -162,7 +164,7 @@ def disperse_siblings_backgroud(
 
     card_cnt = 0
     note_cnt = 0
-    nid_siblings = get_siblings(did, filter_flag, filtered_nid_string)
+    nid_siblings = get_siblings(config, did, filter_flag, filtered_nid_string)
     siblings_cnt = len(nid_siblings)
 
     undo_entry = mw.col.add_custom_undo_entry("Disperse Siblings")

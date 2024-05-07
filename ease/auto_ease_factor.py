@@ -18,30 +18,6 @@ LOG = False
 # add on utilities
 from .ease_calculator import calculate_ease, get_success_rate, moving_average
 
-tag = mw.addonManager.addonFromModule(__name__)
-
-config = mw.addonManager.getConfig(tag)
-
-target_ratio = config.get('target_ratio', 0.85)
-moving_average_weight = config.get('moving_average_weight', 0.2)
-stats_enabled = config.get('stats_enabled', True)
-stats_duration = config.get('stats_duration', 5000)
-
-min_ease = config.get('min_ease', 1000)
-max_ease = config.get('max_ease', 5000)
-leash = config.get('leash', 100)
-reviews_only = config.get('reviews_only', False)
-
-config_settings = {
-    'leash': leash,
-    'min_ease': min_ease,
-    'max_ease': max_ease,
-    'weight': moving_average_weight,
-    'target': target_ratio,
-    'starting_ease_factor': None,
-    'reviews_only': reviews_only
-    }
-
 
 def get_all_reps(card=mw.reviewer.card):
     return mw.col.db.list("select ease from revlog where cid = ? and "
@@ -75,11 +51,15 @@ def get_starting_ease(card=mw.reviewer.card):
     return deck_starting_ease
 
 
-def suggested_factor(card=mw.reviewer.card, new_answer=None, prev_card_factor=None, leashed=True, is_deck_adjustment=False):
+def suggested_factor(config,
+                     card=mw.reviewer.card,
+                     new_answer=None,
+                     prev_card_factor=None,
+                     leashed=True,
+                     is_deck_adjustment=False):
     """Loads card history from anki and returns suggested factor"""
 
     deck_starting_ease = get_starting_ease(card)
-    config_settings['starting_ease_factor'] = deck_starting_ease
 
     # Wraps calculate_ease()
     card_settings = {}
@@ -92,11 +72,13 @@ def suggested_factor(card=mw.reviewer.card, new_answer=None, prev_card_factor=No
         for i in range(len(all_reps)):
             rep_id = all_reps[i][0]
             card_settings['review_list'] = [_[1] for _ in all_reps[0:i]]
-            new_factor = calculate_ease(config_settings, card_settings,
-                                          leashed)
+            new_factor = calculate_ease(config, 
+                                        deck_starting_ease,
+                                        card_settings,
+                                        leashed)
             mw.col.db.execute("update revlog set factor = ? where id = ?", new_factor, rep_id)
             card_settings['factor_list'].append(new_factor)
-    if reviews_only:
+    if config.reviews_only:
         card_settings['review_list'] = get_reviews_only(card)
     else:
         card_settings['review_list'] = get_all_reps(card)
@@ -112,17 +94,21 @@ def suggested_factor(card=mw.reviewer.card, new_answer=None, prev_card_factor=No
         card_settings['factor_list'] = card_settings['factor_list'][:-1]
 
 
-    return calculate_ease(config_settings, card_settings,
-                                          leashed)
+    return calculate_ease(config,
+                          deck_starting_ease,
+                          card_settings,
+                          leashed)
 
 
-def get_stats(card=mw.reviewer.card, new_answer=None, prev_card_factor=None):
+def get_stats(config, card=mw.reviewer.card, new_answer=None, prev_card_factor=None):
     rep_list = get_all_reps(card)
     if new_answer:
         rep_list.append(new_answer)
     factor_list = get_ease_factors(card)
-    weight = config_settings['weight']
-    target = config_settings['target']
+    weight = config.moving_average_weight
+    target = config.target_ratio
+    starting_ease_factor = get_starting_ease(card)
+
 
     if rep_list is None or len(rep_list) < 1:
         success_rate = target
@@ -132,9 +118,7 @@ def get_stats(card=mw.reviewer.card, new_answer=None, prev_card_factor=None):
     if factor_list and len(factor_list) > 0:
         average_ease = moving_average(factor_list, weight)
     else:
-        if config_settings['starting_ease_factor'] is None:
-            config_settings['starting_ease_factor'] = get_starting_ease(card)
-        average_ease = config_settings['starting_ease_factor']
+        average_ease = starting_ease_factor
 
     # add last review (maybe simplify by doing this after new factor applied)
     printable_rep_list = ""
@@ -172,11 +156,11 @@ def get_stats(card=mw.reviewer.card, new_answer=None, prev_card_factor=None):
         msg += f"Last rev factor: {last_rev_factor}"
         msg += f" (actual: {prev_card_factor})<br>"
         
-    if card.queue != 2 and reviews_only:
+    if card.queue != 2 and config.reviews_only:
         msg += f"New factor: NONREVIEW, NO CHANGE<br>"
     else:
-        new_factor = suggested_factor(card, new_answer, prev_card_factor)
-        unleashed_factor = suggested_factor(card, new_answer, prev_card_factor, leashed=False,)
+        new_factor = suggested_factor(config, card, new_answer, prev_card_factor)
+        unleashed_factor = suggested_factor(config, card, new_answer, prev_card_factor, leashed=False,)
         if new_factor == unleashed_factor:
             msg += f"New factor: {new_factor}<br>"
         else:
@@ -186,23 +170,32 @@ def get_stats(card=mw.reviewer.card, new_answer=None, prev_card_factor=None):
     return msg
 
 
-def display_stats(new_answer=None, prev_card_factor=None):
+def display_stats(config, new_answer=None, prev_card_factor=None):
     card = mw.reviewer.card
-    msg = get_stats(card, new_answer, prev_card_factor)
-    tooltip_args = {'msg': msg, 'period': stats_duration}
+    msg = get_stats(config,
+                    card,
+                    new_answer,
+                    prev_card_factor)
+    tooltip_args = {'msg': msg, 'period': config.stats_duration}
     tooltip(**tooltip_args)
 
 
 def adjust_factor_when_review(ease_tuple,
                   reviewer=reviewer.Reviewer,
                   card=mw.reviewer.card):
+    config = Config()
+    config.load()
+
     assert card is not None
     new_answer = ease_tuple[1]
     prev_card_factor = card.factor
-    if card.queue == 2 or not reviews_only:
-        card.factor = suggested_factor(card, new_answer, prev_card_factor)
-    if stats_enabled:
-        display_stats(new_answer, prev_card_factor)
+    if card.queue == 2 or not config.reviews_only:
+        card.factor = suggested_factor(config,
+                                       card,
+                                       new_answer,
+                                       prev_card_factor)
+    if config.stats_enabled:
+        display_stats(config, new_answer, prev_card_factor)
     return ease_tuple
 
 
@@ -258,7 +251,9 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
         card = mw.col.get_card(card_id)
         if (LOG):
             print("old factor", card.factor)
-        card.factor = suggested_factor(card=card, is_deck_adjustment=True)
+        card.factor = suggested_factor(config,
+                                       card=card,
+                                       is_deck_adjustment=True)
         if (LOG):
             print("new factor", card.factor)
         mw.col.update_card(card)

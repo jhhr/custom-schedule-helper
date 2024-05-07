@@ -31,14 +31,13 @@ def get_factor_offset(answer):
     else:
         return 0
 
-def calculate_ease(config_settings, card_settings, leashed=True):
+def calculate_ease(config, starting_ease_factor, card_settings, leashed=True):
     """Return next ease factor based on config and card performance."""
-    leash = config_settings['leash']
-    target = config_settings['target']
-    max_ease = config_settings['max_ease']
-    min_ease = config_settings['min_ease']
-    weight = config_settings['weight']
-    starting_ease_factor = config_settings['starting_ease_factor']
+    leash = config.leash
+    target = config.target_ratio
+    max_ease = config.max_ease
+    min_ease = config.min_ease
+    weight = config.moving_average_weight
 
     review_list = card_settings['review_list']
     factor_list = card_settings['factor_list']
