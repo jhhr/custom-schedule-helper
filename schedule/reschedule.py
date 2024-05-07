@@ -95,8 +95,8 @@ class Scheduler:
     def next_interval(self, max_ivl):
         card = self.card
 
-        revs = mw.col.db.all("select ivl, ease, factor from revlog where cid = ? and "
-                          "type IN (0, 1, 2, 3)", card.id)
+        # Get all revs, including manual reschedules
+        revs = mw.col.db.all("select ivl, ease, factor from revlog where cid = ?", card.id)
         if len(revs) > 1:
             prev_rev = revs[len(revs) - 1]
         else:
@@ -108,16 +108,22 @@ class Scheduler:
 
         factor = None
         rev_conf = get_rev_conf(card)
-        if prev_rev_ease == 1:
+        # Again or manual reschedule
+        # Again never increases ivl so we do nothing in that case
+        if prev_rev_ease == 1 or prev_rev_ease == 0:
             return self.apply_fuzz(card.ivl)
+        # Hard
         elif prev_rev_ease == 2:
+            # Here too, only adjust ivl, if it's increasing
             if rev_conf["deck_hard_fct"] > 1:
                 factor = rev_conf["deck_hard_fct"]
             else:
                 return self.apply_fuzz(card.ivl)
+        # Good
         elif prev_rev_ease == 3:
             # factor is stored as an Integer of parts per 1000, convert to the actual multiplier
             factor = prev_factor / 1000
+        # Easy
         elif prev_rev_ease == 4:
             factor = (prev_factor / 1000) * rev_conf["deck_easy_fct"]
 
