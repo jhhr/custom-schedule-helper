@@ -106,8 +106,12 @@ class Scheduler:
         prev_rev_ease = prev_rev[1]
         prev_factor = prev_rev[2]
 
-        factor = None
         rev_conf = get_rev_conf(card)
+        # Default factor from rev
+        # NOTE: factor is stored as an Integer of parts per 1000, convert to the actual multiplier
+        # This is the normal good mult
+        mult = prev_factor / 1000
+
         # Again or manual reschedule
         # Again never increases ivl so we do nothing in that case
         if prev_rev_ease == 1 or prev_rev_ease == 0:
@@ -116,22 +120,24 @@ class Scheduler:
         elif prev_rev_ease == 2:
             # Here too, only adjust ivl, if it's increasing
             if rev_conf["deck_hard_fct"] > 1:
-                factor = rev_conf["deck_hard_fct"]
+                hardMult = rev_conf["deck_hard_fct"]
+                hardGoodRatio = min(hardMult / mult, 1)
+                # Mult approaches 1 the closer normal hardMult is to goodMult
+                mult = min(hardMult * (1 - hardGoodRatio) + 1 * hardGoodRatio)
             else:
                 return self.apply_fuzz(card.ivl)
         # Good
         elif prev_rev_ease == 3:
-            # factor is stored as an Integer of parts per 1000, convert to the actual multiplier
-            factor = prev_factor / 1000
+            mult = mult
         # Easy
         elif prev_rev_ease == 4:
-            factor = (prev_factor / 1000) * rev_conf["deck_easy_fct"]
+            mult = mult * rev_conf["deck_easy_fct"]
 
-        min_mod_factor = math.sqrt(factor)
-        adj_days_upper = DAYS_UPPER * factor
+        min_mod_factor = math.sqrt(mult)
+        adj_days_upper = DAYS_UPPER * mult
 
         ratio = min(prev_ivl / adj_days_upper, 1)
-        mod_factor = min(factor, factor * (1 - ratio) + min_mod_factor * ratio)
+        mod_factor = min(mult, mult * (1 - ratio) + min_mod_factor * ratio)
         mod_ivl = min(card.ivl, prev_ivl * mod_factor)
         new_interval = self.apply_fuzz(mod_ivl)
         if LOG:

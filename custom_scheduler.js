@@ -1,5 +1,5 @@
 // print the existing states
-const log = false;
+const log = true;
 if (log) console.log(JSON.stringify(states, null, 4));
 
 // Don't adjust intervals for new, learning or relearning cards
@@ -56,18 +56,21 @@ function adjustIvl(answerIvl, mult) {
 
 if (curRevIvl) {
   let goodModIvl;
-  let goodMult;
   if (goodIvl) {
     goodModIvl = adjustIvl(goodIvl, curFct);
-    goodMult = goodModIvl / curRevIvl;
     if (log) console.log('mod good', goodIvl, goodModIvl);
     if (states.good.normal?.review) {
       states.good.normal.review.scheduledDays = goodModIvl;
     }
   }
 
-  if (hardIvl && hardIvlMult && hardIvlMult >= 1) {
-    let modHardIvl = adjustIvl(hardIvl, hardIvlMult);
+  if (hardIvl && hardIvlMult && hardIvlMult >= 1 && goodIvl) {
+    const hardGoodRatio = Math.min(hardIvl / goodIvl, 1);
+    // Try to keep a significant difference between hard and good ivls even when factor may be low
+    // Return a ivl between the unchanged hardIvl and curIvl that's closes to curIvl the closer
+    // hardIvl is to goodIvl
+    const modHardIvl = Math.ceil(hardIvl * (1 - hardGoodRatio) + curRevIvl * hardGoodRatio)
+    if (log) console.log('hardGoodRatio', hardGoodRatio);
     if (log) console.log('mod hard', hardIvl, modHardIvl);
     if (states.hard.normal?.review) {
       states.hard.normal.review.scheduledDays = modHardIvl;
