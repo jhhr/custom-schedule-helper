@@ -5,11 +5,13 @@ import math
 # anki interfaces
 from anki import version
 from aqt import mw
-from aqt import gui_hooks
 from aqt import reviewer
 from aqt.utils import tooltip
 from anki.lang import _
+from anki.utils import ids2str
+from anki.decks import DeckManager
 from ..utils import *
+from ..configuration import Config
 
 LOG = False
 
@@ -204,7 +206,10 @@ def adjust_factor_when_review(ease_tuple,
     return ease_tuple
 
 
-def adjust_ease_factors_background(card_ids: List[int]):
+def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtered_cids={}):
+    config = Config()
+    config.load()
+
     """ Somehow this undo entry doesn't get found this happens:
         mw.col.merge_undo_entries(ease_undo_entry)
           File "anki.collection", line 1027, in merge_undo_entries
@@ -219,6 +224,33 @@ def adjust_ease_factors_background(card_ids: List[int]):
 
     cnt = 0
     cancelled = False
+    DM = DeckManager(mw.col)
+
+    if did is not None:
+        did_list = ids2str(DM.deck_and_child_ids(did))
+        did_query = f"AND did IN {did_list}"
+
+    if recent:
+        today_cutoff = mw.col.sched.day_cutoff
+        day_before_cutoff = today_cutoff - (config.days_to_reschedule + 1) * 86400
+        recent_query = (
+            f"AND id IN (SELECT cid FROM revlog WHERE id >= {day_before_cutoff * 1000})"
+        )
+
+    if filter_flag:
+        filter_query = f"AND id IN {ids2str(filtered_cids)}"
+
+    card_ids = mw.col.db.list(
+        f"""
+        SELECT 
+            id
+        FROM cards
+        WHERE queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
+        {did_query if did is not None else ""}
+        {recent_query if recent else ""}
+        {filter_query if filter_flag else ""}
+    """
+    )
 
     for card_id in card_ids:
         if cancelled:
@@ -232,7 +264,7 @@ def adjust_ease_factors_background(card_ids: List[int]):
         mw.col.update_card(card)
         # mw.col.merge_undo_entries(ease_undo_entry)
         cnt += 1
-        if cnt % 500 == 0:
+        if cnt % 200 == 0:
             mw.taskman.run_on_main(
                 lambda: mw.progress.update(value=cnt, label=f"{cnt} cards adjusted")
             )
@@ -242,7 +274,7 @@ def adjust_ease_factors_background(card_ids: List[int]):
     return f"Adjusted ease for {cnt} cards"
 
 
-def adjust_ease(card_ids: List[int]):
+def adjust_ease(did, recent=False, filter_flag=False, filtered_cids={}):
     start_time = time.time()
 
     def on_done(future):
@@ -251,7 +283,7 @@ def adjust_ease(card_ids: List[int]):
         mw.reset()
 
     fut = mw.taskman.run_in_background(
-        lambda: adjust_ease_factors_background(card_ids),
+        lambda: adjust_ease_factors_background(did, recent, filter_flag, filtered_cids),
         on_done,
     )
 

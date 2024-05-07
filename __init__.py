@@ -12,6 +12,7 @@ from .schedule.free_days import free_days
 from .schedule import init_schedule_review_hook
 from .configuration import Config, run_on_configuration_change
 from .ease.export import export_ease_factors, import_ease_factors
+from .ease.auto_ease_factor import adjust_ease
 from .ease import init_ease_adjust_review_hook
 
 
@@ -53,6 +54,16 @@ def add_action_to_gear(fun, text):
     def aux(m, did):
         a = m.addAction(text)
         a.triggered.connect(lambda b, did=did: fun(did))
+
+    deck_browser_will_show_options_menu.append(aux)
+
+
+def add_separator_to_gear():
+    """fun -- takes an argument, the did
+    text -- what's written in the gear."""
+
+    def aux(m, did):
+        a = m.addSeparator()
 
     deck_browser_will_show_options_menu.append(aux)
 
@@ -100,6 +111,7 @@ def reschedule_recent(did):
 
 
 menu_reschedule = build_action(reschedule, "Reschedule all cards")
+add_separator_to_gear()
 add_action_to_gear(reschedule, "Reschedule all cards")
 
 menu_reschedule_recent = build_action(
@@ -107,15 +119,25 @@ menu_reschedule_recent = build_action(
     f"Reschedule cards reviewed in the last {config.days_to_reschedule} days",
 )
 add_action_to_gear(reschedule_recent, "Reschedule recently reviewed cards")
-
 menu_postpone = build_action(postpone, "Postpone cards in all decks")
 add_action_to_gear(postpone, "Postpone cards")
 
 menu_advance = build_action(advance, "Advance cards in all decks")
 add_action_to_gear(advance, "Advance cards")
 
-add_action_to_gear(export_ease_factors, "Export Ease Factors (AEF)")
-add_action_to_gear(import_ease_factors, "Import Ease Factors (AEF)")
+add_separator_to_gear()
+add_action_to_gear(export_ease_factors, "Export ease factors")
+add_action_to_gear(import_ease_factors, "Import ease factors")
+
+def adjust_ease_recent(did):
+    adjust_ease(did, recent=True)
+
+menu_adjust_ease = build_action(adjust_ease, "Adjust ease factors in all decks")
+add_action_to_gear(adjust_ease, "Adjust ease factor for all cards")
+menu_adjust_ease_recent = build_action(
+    adjust_ease_recent, 
+    f"Adjust ease factors for cards reviewed in the last {config.days_to_reschedule} days",)
+add_action_to_gear(adjust_ease_recent, "Adjust ease for recently reviewed cards")
 
 menu_disperse_siblings = build_action(disperse_siblings, "Disperse all siblings")
 
@@ -134,6 +156,9 @@ menu_for_helper.addAction(menu_reschedule_recent)
 menu_for_helper.addAction(menu_postpone)
 menu_for_helper.addAction(menu_advance)
 menu_for_helper.addAction(menu_disperse_siblings)
+menu_for_helper.addSeparator()
+menu_for_helper.addAction(menu_adjust_ease)
+menu_for_helper.addAction(menu_adjust_ease_recent)
 
 
 menu_apply_free_days = build_action(free_days, "Apply free days now")
