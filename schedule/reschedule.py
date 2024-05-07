@@ -56,7 +56,7 @@ class Scheduler:
         self.fuzz_factor = random.random()
 
     def apply_fuzz(self, ivl):
-        if ivl < 2.5:
+        if ivl < 7:
             return ivl
         ivl = int(round(ivl))
         min_ivl, max_ivl = get_fuzz_range(ivl, self.elapsed_days)
