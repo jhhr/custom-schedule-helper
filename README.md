@@ -3,12 +3,15 @@
 Custom Schedule Helper is an Anki add-on duplicating all the functionalites of the F4SRSAnki Helper
 but instead a different custom scheduling setup. It has the same six main features + one extra
 
+## Copied F4SRSAnki
 - **Reschedule** cards based on their previous review.
 - **Postpone** a selected number of due cards.
 - **Advance** a selected number of undue cards.
 - **Balance** the load during rescheduling (based on fuzz).
 - **No Anki** on Free Days (such as weekends) during rescheduling (based on load balance).
 - **Disperse** Siblings (cards with the same note) to avoid interference & reminder.
+
+## Added in this fork
 - **Auto Ease Factor** changes the ease factor based on reviews very gently. Uses entire review history.
 
 
