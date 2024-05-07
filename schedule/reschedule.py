@@ -123,7 +123,7 @@ class Scheduler:
                 hardMult = rev_conf["deck_hard_fct"]
                 hardGoodRatio = min(hardMult / mult, 1)
                 # Mult approaches 1 the closer normal hardMult is to goodMult
-                mult = min(hardMult * (1 - hardGoodRatio) + 1 * hardGoodRatio)
+                mult = hardMult * (1 - hardGoodRatio) + 1 * hardGoodRatio
             else:
                 return self.apply_fuzz(card.ivl)
         # Good
