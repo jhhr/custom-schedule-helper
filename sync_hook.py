@@ -7,7 +7,8 @@ from .utils import *
 from anki.utils import ids2str
 from anki.lang import _
 
-def create_comparelog(local_rids: List[int]) -> None:
+def create_comparelog(local_rids: List[int], texts: List[str]) -> None:
+    texts.clear()
     local_rids.clear()
     local_rids.extend([id for id in mw.col.db.list("SELECT id FROM revlog")])
 
@@ -105,7 +106,7 @@ def init_sync_hook():
     local_rids = []
     texts = []
 
-    sync_will_start.append(lambda: create_comparelog(local_rids))
+    sync_will_start.append(lambda: create_comparelog(local_rids, texts))
     sync_did_finish.append(lambda: auto_adjust_ease(local_rids, texts))
     sync_did_finish.append(lambda: auto_reschedule(local_rids, texts))
     sync_did_finish.append(lambda: auto_disperse(local_rids, texts))
