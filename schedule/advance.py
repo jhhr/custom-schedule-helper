@@ -90,5 +90,4 @@ def advance(did):
         f"""{cnt} cards advanced in {time.time() - start_time:.2f} seconds."""
     )
     mw.progress.finish()
-    mw.col.reset()
     mw.reset()

@@ -5,7 +5,7 @@ from anki.decks import DeckManager
 from anki.utils import ids2str, int_version
 
 DAYS_UPPER = 225
-LOG = FALSE
+LOG = False
 class Scheduler:
     max_ivl: int
     enable_load_balance: bool
@@ -130,7 +130,6 @@ def reschedule(did, recent=False, filter_flag=False, filtered_cids={}):
     def on_done(future):
         mw.progress.finish()
         tooltip(f"{future.result()} in {time.time() - start_time:.2f} seconds")
-        mw.col.reset()
         mw.reset()
 
     fut = mw.taskman.run_in_background(

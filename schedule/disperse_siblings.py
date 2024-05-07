@@ -139,7 +139,6 @@ def disperse_siblings(
     def on_done(future):
         mw.progress.finish()
         tooltip(f"{future.result()} in {time.time() - start_time:.2f} seconds")
-        mw.col.reset()
         mw.reset()
 
     fut = mw.taskman.run_in_background(
@@ -164,12 +163,12 @@ def disperse_siblings_backgroud(
     card_cnt = 0
     note_cnt = 0
     nid_siblings = get_siblings(did, filter_flag, filtered_nid_string)
-    sibilings_cnt = len(nid_siblings)
+    siblings_cnt = len(nid_siblings)
 
     undo_entry = mw.col.add_custom_undo_entry("Disperse Siblings")
     mw.taskman.run_on_main(
         lambda: mw.progress.start(
-            label="Siblings Dispersing", max=sibilings_cnt, immediate=False
+            label="Siblings Dispersing", max=siblings_cnt, immediate=False
         )
     )
 
@@ -190,7 +189,7 @@ def disperse_siblings_backgroud(
                 lambda: mw.progress.update(
                     label=f"{note_cnt}/{len(nid_siblings)} notes dispersed",
                     value=note_cnt,
-                    max=sibilings_cnt,
+                    max=siblings_cnt,
                 )
             )
             if mw.progress.want_cancel():

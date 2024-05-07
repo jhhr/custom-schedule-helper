@@ -104,5 +104,4 @@ def postpone(did):
         f"""{cnt} cards postponed in {time.time() - start_time:.2f} seconds."""
     )
     mw.progress.finish()
-    mw.col.reset()
     mw.reset()
