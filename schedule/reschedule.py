@@ -182,7 +182,7 @@ class Scheduler:
         self.card = card
 
 
-def reschedule(did, recent=False, filter_flag=False, filtered_cids={}):
+def reschedule(did, recent=False, filter_flag=False, filtered_cids=[]):
     start_time = time.time()
 
     def on_done(future):
@@ -198,7 +198,7 @@ def reschedule(did, recent=False, filter_flag=False, filtered_cids={}):
     return fut
 
 
-def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}):
+def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]):
     config = Config()
     config.load()
 
@@ -214,10 +214,13 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}
         scheduler.free_days = config.free_days
     cancelled = False
     DM = DeckManager(mw.col)
+
+    did_query = None
     if did is not None:
         did_list = ids2str(DM.deck_and_child_ids(did))
         did_query = f"AND did IN {did_list}"
 
+    recent_query = None
     if recent:
         today_cutoff = mw.col.sched.day_cutoff
         day_before_cutoff = today_cutoff - (config.days_to_reschedule + 1) * 86400
@@ -225,9 +228,11 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}
             f"AND id IN (SELECT cid FROM revlog WHERE id >= {day_before_cutoff * 1000})"
         )
 
-    if filter_flag:
+    filter_query = None
+    if filter_flag and len(filtered_cids) > 0:
         filter_query = f"AND id IN {ids2str(filtered_cids)}"
 
+    # Get cards that haven't been rescheduled already
     cards = mw.col.db.all(
         f"""
         SELECT 
@@ -237,10 +242,12 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}
             ELSE odid
             END
         FROM cards
-        WHERE queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
-        {did_query if did is not None else ""}
-        {recent_query if recent else ""}
-        {filter_query if filter_flag else ""}
+        WHERE data != ''
+        AND json_extract(data, '$.v') NOT IN ('reschedule', 'disperse')
+        AND queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
+        {did_query if did_query is not None else ""}
+        {recent_query if recent_query is not None else ""}
+        {filter_query if filter_query is not None else ""}
     """
     )
     # x[0]: cid

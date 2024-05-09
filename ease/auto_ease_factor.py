@@ -1,16 +1,22 @@
 # inspired by https://eshapard.github.io/
 
 import math
+import time
 
-# anki interfaces
-from anki import version
+from anki.decks import DeckManager
+from anki.stats import (
+    QUEUE_TYPE_DAY_LEARN_RELEARN,
+)
+from anki.stats import (
+    QUEUE_TYPE_LRN,
+    QUEUE_TYPE_REV,
+)
+from anki.utils import ids2str
 from aqt import mw
+# anki interfaces
 from aqt import reviewer
 from aqt.utils import tooltip
-from anki.lang import _
-from anki.utils import ids2str
-from anki.decks import DeckManager
-from ..utils import *
+
 from ..configuration import Config
 
 LOG = False
@@ -23,9 +29,10 @@ def get_all_reps(card=mw.reviewer.card):
     return mw.col.db.list("select ease from revlog where cid = ? and "
                           "type IN (0, 1, 2, 3)", card.id)
 
+
 def get_all_reps_with_ids(card=mw.reviewer.card):
     return mw.col.db.all("select id, ease from revlog where cid = ? and "
-                          "type IN (0, 1, 2, 3)", card.id)
+                         "type IN (0, 1, 2, 3)", card.id)
 
 
 def get_reviews_only(card=mw.reviewer.card):
@@ -45,7 +52,7 @@ def get_starting_ease(card=mw.reviewer.card):
         deck_id = card.odid
     try:
         deck_starting_ease = mw.col.decks.config_dict_for_deck_id(
-                deck_id)['new']['initialFactor']
+            deck_id)['new']['initialFactor']
     except KeyError:
         deck_starting_ease = 2500
     return deck_starting_ease
@@ -72,7 +79,7 @@ def suggested_factor(config,
         for i in range(len(all_reps)):
             rep_id = all_reps[i][0]
             card_settings['review_list'] = [_[1] for _ in all_reps[0:i]]
-            new_factor = calculate_ease(config, 
+            new_factor = calculate_ease(config,
                                         deck_starting_ease,
                                         card_settings,
                                         leashed)
@@ -93,7 +100,6 @@ def suggested_factor(config,
     if new_answer is None and len(card_settings['factor_list']) > 1:
         card_settings['factor_list'] = card_settings['factor_list'][:-1]
 
-
     return calculate_ease(config,
                           deck_starting_ease,
                           card_settings,
@@ -109,12 +115,11 @@ def get_stats(config, card=mw.reviewer.card, new_answer=None, prev_card_factor=N
     target = config.target_ratio
     starting_ease_factor = get_starting_ease(card)
 
-
     if rep_list is None or len(rep_list) < 1:
         success_rate = target
     else:
         success_rate = get_success_rate(rep_list,
-                                                      weight, init=target)
+                                        weight, init=target)
     if factor_list and len(factor_list) > 0:
         average_ease = moving_average(factor_list, weight)
     else:
@@ -155,12 +160,12 @@ def get_stats(config, card=mw.reviewer.card, new_answer=None, prev_card_factor=N
     else:
         msg += f"Last rev factor: {last_rev_factor}"
         msg += f" (actual: {prev_card_factor})<br>"
-        
+
     if card.queue != 2 and config.reviews_only:
         msg += f"New factor: NONREVIEW, NO CHANGE<br>"
     else:
         new_factor = suggested_factor(config, card, new_answer, prev_card_factor)
-        unleashed_factor = suggested_factor(config, card, new_answer, prev_card_factor, leashed=False,)
+        unleashed_factor = suggested_factor(config, card, new_answer, prev_card_factor, leashed=False, )
         if new_factor == unleashed_factor:
             msg += f"New factor: {new_factor}<br>"
         else:
@@ -181,8 +186,8 @@ def display_stats(config, new_answer=None, prev_card_factor=None):
 
 
 def adjust_factor_when_review(ease_tuple,
-                  reviewer=reviewer.Reviewer,
-                  card=mw.reviewer.card):
+                              reviewer=reviewer.Reviewer,
+                              card=mw.reviewer.card):
     config = Config()
     config.load()
 
@@ -199,7 +204,7 @@ def adjust_factor_when_review(ease_tuple,
     return ease_tuple
 
 
-def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtered_cids={}):
+def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtered_cids=[]):
     config = Config()
     config.load()
 
@@ -269,7 +274,7 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
     return f"Adjusted ease for {cnt} cards"
 
 
-def adjust_ease(did, recent=False, filter_flag=False, filtered_cids={}):
+def adjust_ease(did, recent=False, filter_flag=False, filtered_cids=[]):
     start_time = time.time()
 
     def on_done(future):

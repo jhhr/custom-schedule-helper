@@ -16,6 +16,8 @@ from ..utils import (
     get_last_review_date,
     update_card_due_ivl,
     write_custom_data,
+    get_fuzz_range,
+    due_to_date,
 )
 
 
