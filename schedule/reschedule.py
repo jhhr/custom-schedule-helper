@@ -1,4 +1,3 @@
-import json
 import math
 import random
 import time
@@ -23,6 +22,7 @@ from ..utils import (
     get_fuzz_range,
     update_card_due_ivl,
     rotate_number_by_k,
+    write_custom_data,
 )
 
 DAYS_UPPER = 225
@@ -279,8 +279,7 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}
 def reschedule_card(cid, scheduler: Scheduler, recompute=False):
     card = mw.col.get_card(cid)
 
-    new_custom_data = {"v": "reschedule"}
-    card.custom_data = json.dumps(new_custom_data)
+    write_custom_data(card, "v", "reschedule")
 
     if card.type == CARD_TYPE_REV:
         scheduler.set_card(card)
