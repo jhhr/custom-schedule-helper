@@ -1,6 +1,12 @@
 // print the existing states
 const log = true;
 if (log) console.log(JSON.stringify(states, null, 4));
+if (log) console.log(JSON.stringify(customData, null, 4));
+
+customData.again.v = 'review';
+customData.hard.v = 'review';
+customData.good.v = 'review';
+customData.easy.v = 'review';
 
 // Don't adjust intervals for new, learning cards
 if (states.current.normal?.new 
