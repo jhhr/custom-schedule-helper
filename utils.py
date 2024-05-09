@@ -1,5 +1,3 @@
-import re
-from aqt.utils import tooltip, getText, showWarning, askUser, showText
 from collections import OrderedDict
 from typing import List, Dict, Tuple
 from anki.stats_pb2 import CardStatsResponse
@@ -11,15 +9,12 @@ from anki.stats import (
     REVLOG_CRAM,
     REVLOG_RESCHED,
     CARD_TYPE_REV,
-    QUEUE_TYPE_LRN,
-    QUEUE_TYPE_REV,
     QUEUE_TYPE_DAY_LEARN_RELEARN,
 )
 from aqt import mw
 import json
 import math
 import random
-import time
 from datetime import datetime, timedelta
 
 
@@ -67,7 +62,8 @@ def get_last_review_date(card: Card):
 
 
 def update_card_due_ivl(card: Card, new_ivl: int):
-    card.ivl = new_ivl
+    # Don't change ivl, it leads to ever-increasing ivl when reschedule is applied repeatedly
+    # card.ivl = new_ivl
     last_review_date = get_last_review_date(card)
     if card.odid:
         card.odue = max(last_review_date + new_ivl, 1)
