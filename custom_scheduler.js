@@ -21,7 +21,7 @@ const revObj = states.current.normal?.review
    || states.current.filtered?.rescheduling?.originalState?.relearning.review
 
 const curFct = revObj?.easeFactor;
-const curRevIvl = revObj?.scheduledDays;
+const curRevIvl = revObj?.elapsedDays || revObj?.scheduledDays;
 
 const daysUpper = 225;
 const minModFct = Math.sqrt(curFct);
