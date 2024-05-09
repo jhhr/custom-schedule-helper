@@ -1,6 +1,21 @@
-from ..utils import *
+import math
+import random
+import time
+
 from anki.decks import DeckManager
+from anki.stats import (
+    QUEUE_TYPE_REV,
+)
 from anki.utils import ids2str
+from aqt import mw
+from aqt.utils import tooltip, getText, showWarning
+
+from ..utils import (
+    write_custom_data,
+    RepresentsInt,
+    update_card_due_ivl,
+    get_last_review_date,
+)
 
 
 def get_desired_postpone_cnt_with_response(safe_cnt, did):
@@ -23,6 +38,8 @@ def postpone(did):
     if did is not None:
         did_list = ids2str(DM.deck_and_child_ids(did))
 
+    # json_extract(data, '$.dr')
+    # WHERE data != ''
     cards = mw.col.db.all(
         f"""
         SELECT 
@@ -36,34 +53,32 @@ def postpone(did):
             CASE WHEN odid==0
             THEN {mw.col.sched.today} - (due - ivl)
             ELSE {mw.col.sched.today} - (odue - ivl)
-            END,
-            json_extract(data, '$.dr')
+            END
         FROM cards
-        WHERE data != ''
-        AND due <= {mw.col.sched.today}
+        WHERE due <= {mw.col.sched.today}
         AND queue = {QUEUE_TYPE_REV}
         {"AND did IN %s" % did_list if did is not None else ""}
     """
     )
     # x[0]: cid
     # x[1]: did
-    # x[2]: interval
-    # x[3]: factor
+    # x[2]: factor
+    # x[3]: interval
     # x[4]: elapsed days
     # x[5]: max interval
     cards = map(
         lambda x: (
-            x
-            + [
-                DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
-            ]
+                x
+                + [
+                    DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
+                ]
         ),
         cards,
     )
     # sort by (elapsed_days / interval - 1), -interval (ascending)
-    cards = sorted(cards, key=lambda x: (x[4] / x[2] - 1, -x[2]))
+    cards = sorted(cards, key=lambda x: (x[4] / x[3] - 1, -x[3]))
     safe_cnt = len(
-        list(filter(lambda x: x[4] / x[2] - 1- 1 < 0.15, cards))
+        list(filter(lambda x: x[4] / x[3] - 1 - 1 < 0.15, cards))
     )
 
     (desired_postpone_cnt, resp) = get_desired_postpone_cnt_with_response(safe_cnt, did)
@@ -82,7 +97,8 @@ def postpone(did):
     start_time = time.time()
 
     cnt = 0
-    for cid, did, ivl, _, elapsed_days, max_ivl in cards:
+
+    for cid, _, _, ivl, elapsed_days, max_ivl in cards:
         if cnt >= desired_postpone_cnt:
             break
 

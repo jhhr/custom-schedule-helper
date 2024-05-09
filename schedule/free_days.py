@@ -1,7 +1,17 @@
-from ..utils import *
 from ..configuration import Config
 from .reschedule import reschedule
 from anki.utils import ids2str
+import re
+from aqt.utils import tooltip, getText, showWarning, askUser, showText
+from collections import OrderedDict
+from anki.stats_pb2 import CardStatsResponse
+from anki.cards import Card
+from aqt import mw
+import json
+import math
+import random
+import time
+from datetime import datetime, timedelta
 
 
 def free_days(did):

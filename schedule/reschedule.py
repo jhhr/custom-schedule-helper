@@ -1,11 +1,34 @@
-from ..utils import *
-from ..configuration import Config
+import json
+import math
+import random
+import time
+from datetime import datetime, timedelta
+from typing import List, Dict
+
 from anki.cards import Card
 from anki.decks import DeckManager
+from anki.stats import (
+    CARD_TYPE_REV,
+    QUEUE_TYPE_LRN,
+    QUEUE_TYPE_REV,
+    QUEUE_TYPE_DAY_LEARN_RELEARN,
+)
 from anki.utils import ids2str, int_version
+from aqt import mw
+from aqt.utils import tooltip
+
+from ..configuration import Config
+from ..utils import (
+    get_rev_conf,
+    get_fuzz_range,
+    update_card_due_ivl,
+    rotate_number_by_k,
+)
 
 DAYS_UPPER = 225
 LOG = False
+
+
 class Scheduler:
     max_ivl: int
     enable_load_balance: bool
@@ -37,8 +60,8 @@ class Scheduler:
         for day in list(self.due_cnt_perday_from_first_day.keys()):
             if day < mw.col.sched.today:
                 self.due_cnt_perday_from_first_day[mw.col.sched.today] = (
-                    self.due_cnt_perday_from_first_day.get(mw.col.sched.today, 0)
-                    + self.due_cnt_perday_from_first_day[day]
+                        self.due_cnt_perday_from_first_day.get(mw.col.sched.today, 0)
+                        + self.due_cnt_perday_from_first_day[day]
                 )
                 self.due_cnt_perday_from_first_day.pop(day)
         self.learned_cnt_perday_from_today = {
@@ -85,8 +108,8 @@ class Scheduler:
                 )
                 num_cards = due_cards + rated_cards
                 if (
-                    num_cards < min_num_cards
-                    and due_date.weekday() not in self.free_days
+                        num_cards < min_num_cards
+                        and due_date.weekday() not in self.free_days
                 ):
                     best_ivl = check_ivl
                     min_num_cards = num_cards
@@ -101,7 +124,7 @@ class Scheduler:
             prev_rev = revs[len(revs) - 1]
         else:
             return self.apply_fuzz(card.ivl)
-        
+
         prev_ivl = prev_rev[0]
         prev_rev_ease = prev_rev[1]
         prev_factor = prev_rev[2]
@@ -120,10 +143,10 @@ class Scheduler:
         elif prev_rev_ease == 2:
             # Here too, only adjust ivl, if it's increasing
             if rev_conf["deck_hard_fct"] > 1:
-                hardMult = rev_conf["deck_hard_fct"]
-                hardGoodRatio = min(hardMult / mult, 1)
-                # Mult approaches 1 the closer normal hardMult is to goodMult
-                mult = hardMult * (1 - hardGoodRatio) + 1 * hardGoodRatio
+                hard_mult = rev_conf["deck_hard_fct"]
+                hard_good_ratio = min(hard_mult / mult, 1)
+                # Mult approaches 1 the closer normal hard_mult is to goodMult
+                mult = hard_mult * (1 - hard_good_ratio) + 1 * hard_good_ratio
             else:
                 return self.apply_fuzz(card.ivl)
         # Good
@@ -225,10 +248,10 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids={}
     # x[2]: max interval
     cards = map(
         lambda x: (
-            x
-            + [
-                DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
-            ]
+                x
+                + [
+                    DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
+                ]
         ),
         cards,
     )
@@ -269,6 +292,6 @@ def reschedule_card(cid, scheduler: Scheduler, recompute=False):
         if scheduler.enable_load_balance:
             scheduler.due_cnt_perday_from_first_day[due_before] -= 1
             scheduler.due_cnt_perday_from_first_day[due_after] = (
-                scheduler.due_cnt_perday_from_first_day.get(due_after, 0) + 1
+                    scheduler.due_cnt_perday_from_first_day.get(due_after, 0) + 1
             )
     return card

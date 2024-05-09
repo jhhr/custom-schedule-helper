@@ -1,10 +1,22 @@
-from ..utils import *
+import time
+from typing import Dict, Tuple
+
+from anki.cards import Card
+from anki.utils import ids2str
+from aqt import mw
+from aqt.utils import tooltip
+
 from ..configuration import Config
-from anki.utils import ids2str, html_to_text_line
 
 enable_load_balance = None
 free_days = None
 version = None
+from ..utils import (
+    filter_revlogs,
+    get_last_review_date,
+    update_card_due_ivl,
+    write_custom_data,
+)
 
 
 def get_siblings(config, did=None, filter_flag=False, filtered_nid_string=""):
@@ -32,7 +44,6 @@ def get_siblings(config, did=None, filter_flag=False, filtered_nid_string=""):
         FROM cards
         WHERE type = 2
         AND queue != -1
-        AND data != ''
         {nid_query if filter_flag else ""}
         GROUP BY nid
         HAVING count(*) > 1
@@ -80,10 +91,10 @@ def get_siblings_when_review(card: Card):
     )
     siblings = map(
         lambda x: x
-        + [
-            config.target_ratio,
-            mw.col.decks.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
-        ],
+                  + [
+                      config.target_ratio,
+                      mw.col.decks.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
+                  ],
         siblings,
     )
     return list(siblings)
@@ -134,7 +145,7 @@ def disperse(siblings):
 
 
 def disperse_siblings(
-    did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
+        did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
 ):
     start_time = time.time()
 
@@ -154,7 +165,7 @@ def disperse_siblings(
 
 
 def disperse_siblings_backgroud(
-    did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
+        did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
 ):
     config = Config()
     config.load()
@@ -197,7 +208,7 @@ def disperse_siblings_backgroud(
             if mw.progress.want_cancel():
                 break
 
-    return f"{text_from_reschedule +', ' if text_from_reschedule != '' else ''}{card_cnt} cards in {note_cnt} notes dispersed"
+    return f"{text_from_reschedule + ', ' if text_from_reschedule != '' else ''}{card_cnt} cards in {note_cnt} notes dispersed"
 
 
 def disperse_siblings_when_review(reviewer, card: Card, ease):

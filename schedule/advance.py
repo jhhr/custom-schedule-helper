@@ -1,6 +1,19 @@
-from ..utils import *
+import time
+
 from anki.decks import DeckManager
+from anki.stats import (
+    QUEUE_TYPE_REV,
+)
 from anki.utils import ids2str
+from aqt import mw
+from aqt.utils import tooltip, getText, showWarning
+
+from ..utils import (
+    RepresentsInt,
+    get_last_review_date,
+    update_card_due_ivl,
+    write_custom_data,
+)
 
 
 def get_desired_advance_cnt_with_response(safe_cnt, did):
@@ -36,24 +49,23 @@ def advance(did):
             CASE WHEN odid==0
             THEN {mw.col.sched.today} - (due - ivl)
             ELSE {mw.col.sched.today} - (odue - ivl)
-            END,
+            END
         FROM cards
-        WHERE data != '' 
-        AND due > {mw.col.sched.today}
+        WHERE due > {mw.col.sched.today}
         AND queue = {QUEUE_TYPE_REV}
         {"AND did IN %s" % did_list if did is not None else ""}
     """
     )
     # x[0]: cid
     # x[1]: did
-    # x[2]: interval
-    # x[3]: factor
+    # x[2]: factor
+    # x[3]: interval
     # x[4]: elapsed days
 
     # sort by (elapsed_days / interval - 1), -interval (ascending)
-    cards = sorted(cards, key=lambda x: (x[4] / x[2] - 1, -x[2]))
+    cards = sorted(cards, key=lambda x: (x[4] / x[3] - 1, -x[3]))
     safe_cnt = len(
-        list(filter(lambda x: x[4] / x[2] - 1- 1 < 0.15, cards))
+        list(filter(lambda x: x[4] / x[3] - 1- 1 < 0.15, cards))
     )
 
     (desired_advance_cnt, resp) = get_desired_advance_cnt_with_response(safe_cnt, did)
@@ -72,7 +84,7 @@ def advance(did):
     start_time = time.time()
 
     cnt = 0
-    for cid, did, _, _, _, _, _ in cards:
+    for cid, _, _, _, _ in cards:
         if cnt >= desired_advance_cnt:
             break
 
