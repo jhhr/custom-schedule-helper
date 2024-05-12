@@ -1,20 +1,20 @@
-from aqt.gui_hooks import deck_browser_will_show_options_menu, state_did_change
-from aqt import mw
-from aqt.qt import QAction
 from typing import Callable
 
-from .sync_hook import init_sync_hook
-from .schedule.reschedule import reschedule
-from .schedule.postpone import postpone
+from aqt import mw
+from aqt.gui_hooks import deck_browser_will_show_options_menu, state_did_change
+from aqt.qt import QAction
+
+from .configuration import Config, run_on_configuration_change
+from .ease import init_ease_adjust_review_hook
+from .ease.auto_ease_factor import adjust_ease
+from .ease.export import export_ease_factors, import_ease_factors
+from .schedule import init_schedule_review_hook
 from .schedule.advance import advance
 from .schedule.disperse_siblings import disperse_siblings
 from .schedule.free_days import free_days
-from .schedule import init_schedule_review_hook
-from .configuration import Config, run_on_configuration_change
-from .ease.export import export_ease_factors, import_ease_factors
-from .ease.auto_ease_factor import adjust_ease
-from .ease import init_ease_adjust_review_hook
-
+from .schedule.postpone import postpone
+from .schedule.reschedule import reschedule
+from .sync_hook import init_sync_hook
 
 """
 Acknowledgement to Arthur Milchior, Carlos Duarte and oakkitten.
@@ -47,12 +47,16 @@ def build_action(fun, text, shortcut=None):
     return action
 
 
-def add_action_to_gear(fun, text):
+def add_action_to_gear(fun, get_text):
     """fun -- takes an argument, the did
     text -- what's written in the gear."""
 
     def aux(m, did):
-        a = m.addAction(text)
+        config.load()
+        # Use function to get so that it occurs after config is loaded
+        # in case the text uses a config value
+        # This the text gets updated when the config changes
+        a = m.addAction(get_text())
         a.triggered.connect(lambda b, did=did: fun(did))
 
     deck_browser_will_show_options_menu.append(aux)
@@ -112,35 +116,42 @@ def reschedule_recent(did):
 
 menu_reschedule = build_action(reschedule, "Reschedule all cards")
 add_separator_to_gear()
-add_action_to_gear(reschedule, "Reschedule all cards")
+add_action_to_gear(reschedule, lambda: "Reschedule all cards")
 
 menu_reschedule_recent = build_action(
     reschedule_recent,
     f"Reschedule cards reviewed in the last {config.days_to_reschedule} days",
 )
-add_action_to_gear(reschedule_recent, "Reschedule recently reviewed cards")
+add_action_to_gear(
+    reschedule_recent,
+    lambda: f"Reschedule cards reviewed the last {config.days_to_reschedule} days"
+)
 menu_postpone = build_action(postpone, "Postpone cards in all decks")
-add_action_to_gear(postpone, "Postpone cards")
+add_action_to_gear(postpone, lambda: "Postpone cards")
 
 menu_advance = build_action(advance, "Advance cards in all decks")
-add_action_to_gear(advance, "Advance cards")
+add_action_to_gear(advance, lambda: "Advance cards")
 
 add_separator_to_gear()
-add_action_to_gear(export_ease_factors, "Export ease factors")
-add_action_to_gear(import_ease_factors, "Import ease factors")
+add_action_to_gear(export_ease_factors, lambda: "Export ease factors")
+add_action_to_gear(import_ease_factors, lambda: "Import ease factors")
+
 
 def adjust_ease_recent(did):
     adjust_ease(did, recent=True)
 
+
 menu_adjust_ease = build_action(adjust_ease, "Adjust ease factors in all decks")
-add_action_to_gear(adjust_ease, "Adjust ease factor for all cards")
+add_action_to_gear(adjust_ease, lambda: "Adjust ease factor for all cards")
 menu_adjust_ease_recent = build_action(
-    adjust_ease_recent, 
-    f"Adjust ease factors for cards reviewed in the last {config.days_to_reschedule} days",)
-add_action_to_gear(adjust_ease_recent, "Adjust ease for recently reviewed cards")
+    adjust_ease_recent,
+    f"Adjust ease factors for cards reviewed in the last {config.days_to_reschedule} days", )
+add_action_to_gear(
+    adjust_ease_recent,
+    lambda: f"Adjust ease factors for cards reviewed in the last {config.days_to_reschedule} days"
+)
 
 menu_disperse_siblings = build_action(disperse_siblings, "Disperse all siblings")
-
 
 menu_for_helper = mw.form.menuTools.addMenu("Custom Schedule Helper")
 menu_for_helper.addAction(menu_auto_reschedule_after_sync)
@@ -160,8 +171,8 @@ menu_for_helper.addSeparator()
 menu_for_helper.addAction(menu_adjust_ease)
 menu_for_helper.addAction(menu_adjust_ease_recent)
 
-
 menu_apply_free_days = build_action(free_days, "Apply free days now")
+
 
 def set_free_days(day, checked):
     config.free_days = (day, checked)
