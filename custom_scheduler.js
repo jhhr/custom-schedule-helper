@@ -3,13 +3,32 @@ const log = true;
 if (log) console.log(JSON.stringify(states, null, 4));
 if (log) console.log(JSON.stringify(customData, null, 4));
 
+// Write customData to DOM so we can read it in the template with javascript, if we want
+// And also handle setting cached content into alt_element_id elements
+var customDataDiv = document.getElementById("customData");
+if (!customDataDiv) {
+  customDataDiv = document.createElement("div");
+  customDataDiv.id = "customData";
+  var currentCustomData = JSON.parse(states.current.customData);
+  Object.entries(currentCustomData).forEach(([key, value]) => {
+    customDataDiv.dataset[key] = value;
+  });
+  document.body.appendChild(customDataDiv);
+}
+
+// Set the customData values to 'review' for all buttons so that rescheduling will be applied
 customData.again.v = 'review';
 customData.hard.v = 'review';
 customData.good.v = 'review';
 customData.easy.v = 'review';
+// Also set cache value to zero so that new cached values are to be created
+customData.again.fc = 0;
+customData.hard.fc = 0;
+customData.good.fc = 0;
+customData.easy.fc = 0;
 
 // Don't adjust intervals for new, learning cards
-if (states.current.normal?.new 
+if (states.current.normal?.new
   || (states.current.normal?.learning)
   || states.current.filtered?.rescheduling.originalState.new
   || states.current.filtered?.rescheduling.originalState.learning) return;
@@ -21,7 +40,7 @@ const revObj = states.current.normal?.review
    || states.current.filtered?.rescheduling?.originalState?.relearning.review
 
 const curFct = revObj?.easeFactor;
-const curRevIvl = revObj?.elapsedDays || revObj?.scheduledDays;
+const curRevIvl = revObj?.scheduledDays;
 
 const daysUpper = 225;
 const minModFct = Math.sqrt(curFct);
