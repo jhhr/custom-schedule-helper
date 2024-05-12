@@ -1,21 +1,18 @@
-from collections import OrderedDict
-from typing import List, Dict, Tuple
-from anki.stats_pb2 import CardStatsResponse
+from typing import List
+import json
+import math
+from datetime import datetime, timedelta
+from typing import List
+
 from anki.cards import Card
 from anki.stats import (
     REVLOG_LRN,
     REVLOG_REV,
     REVLOG_RELRN,
     REVLOG_CRAM,
-    REVLOG_RESCHED,
-    CARD_TYPE_REV,
-    QUEUE_TYPE_DAY_LEARN_RELEARN,
 )
+from anki.stats_pb2 import CardStatsResponse
 from aqt import mw
-import json
-import math
-import random
-from datetime import datetime, timedelta
 
 
 def RepresentsInt(s):
@@ -115,9 +112,15 @@ def power_forgetting_curve(elapsed_days, stability):
 def write_custom_data(card: Card, key, value):
     if card.custom_data != "":
         custom_data = json.loads(card.custom_data)
-        custom_data[key] = value
+        if value is None:
+            custom_data.pop(key, None)
+        else:
+            custom_data[key] = value
     else:
-        custom_data = {key: value}
+        if value is None:
+            return
+        else:
+            custom_data = {key: value}
     card.custom_data = json.dumps(custom_data)
 
 

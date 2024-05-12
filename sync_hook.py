@@ -1,11 +1,14 @@
-from aqt.gui_hooks import sync_will_start, sync_did_finish
-from .schedule.reschedule import reschedule
-from .schedule.disperse_siblings import disperse_siblings
-from .ease.auto_ease_factor import adjust_ease
-from .configuration import Config
-from .utils import *
+from typing import List
+
 from anki.utils import ids2str
-from anki.lang import _
+from aqt import mw
+from aqt.gui_hooks import sync_will_start, sync_did_finish
+
+from .configuration import Config
+from .ease.auto_ease_factor import adjust_ease
+from .schedule.disperse_siblings import disperse_siblings
+from .schedule.reschedule import reschedule
+
 
 def create_comparelog(local_rids: List[int], texts: List[str]) -> None:
     texts.clear()

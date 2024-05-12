@@ -3,14 +3,16 @@
 import math
 import time
 
-from anki.decks import DeckManager
-from anki.stats import (
+from anki.consts import (
+    REVLOG_LRN,
+    REVLOG_REV,
+    REVLOG_RELRN,
+    REVLOG_CRAM,
     QUEUE_TYPE_DAY_LEARN_RELEARN,
-)
-from anki.stats import (
     QUEUE_TYPE_LRN,
     QUEUE_TYPE_REV,
 )
+from anki.decks import DeckManager
 from anki.utils import ids2str
 from aqt import mw
 # anki interfaces
@@ -26,24 +28,40 @@ from .ease_calculator import calculate_ease, get_success_rate, moving_average
 
 
 def get_all_reps(card=mw.reviewer.card):
-    return mw.col.db.list("select ease from revlog where cid = ? and "
-                          "type IN (0, 1, 2, 3)", card.id)
+    return mw.col.db.list(f"""
+        select ease
+        from revlog
+        where cid = {card.id}
+        and type IN ({REVLOG_LRN}, {REVLOG_REV}, {REVLOG_RELRN}, {REVLOG_CRAM})
+        """)
 
 
 def get_all_reps_with_ids(card=mw.reviewer.card):
-    return mw.col.db.all("select id, ease from revlog where cid = ? and "
-                         "type IN (0, 1, 2, 3)", card.id)
+    return mw.col.db.all(f"""
+        select id, ease
+        from revlog
+        where cid = {card.id}
+        and type IN ({REVLOG_LRN}, {REVLOG_REV}, {REVLOG_RELRN}, {REVLOG_CRAM})
+        """)
 
 
 def get_reviews_only(card=mw.reviewer.card):
-    return mw.col.db.list(("select ease from revlog where type = 1"
-                           " and cid = ?"), card.id)
+    return mw.col.db.list((f"""
+        select ease
+        from revlog
+        where type = {REVLOG_REV}
+        and cid = {card.id}
+        """))
 
 
 def get_ease_factors(card=mw.reviewer.card):
-    return mw.col.db.list("select factor from revlog where cid = ?"
-                          " and factor > 0 and type IN (0, 1, 2, 3)",
-                          card.id)
+    return mw.col.db.list(f"""
+        select factor
+        from revlog
+        where cid = {card.id}
+        and factor > 0
+        and type IN ({REVLOG_LRN}, {REVLOG_REV}, {REVLOG_RELRN}, {REVLOG_CRAM})
+""")
 
 
 def get_starting_ease(card=mw.reviewer.card):

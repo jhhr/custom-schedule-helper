@@ -5,13 +5,13 @@ from datetime import datetime, timedelta
 from typing import List, Dict
 
 from anki.cards import Card
-from anki.decks import DeckManager
-from anki.stats import (
+from anki.consts import (
     CARD_TYPE_REV,
     QUEUE_TYPE_LRN,
     QUEUE_TYPE_REV,
     QUEUE_TYPE_DAY_LEARN_RELEARN,
 )
+from anki.decks import DeckManager
 from anki.utils import ids2str, int_version
 from aqt import mw
 from aqt.utils import tooltip
@@ -52,7 +52,7 @@ class Scheduler:
             for day, cnt in mw.col.db.all(
                 f"""SELECT {true_due}, count() 
                 FROM cards 
-                WHERE type = 2  
+                WHERE type = {CARD_TYPE_REV}
                 AND queue != -1
                 GROUP BY {true_due}"""
             )
@@ -243,7 +243,7 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
             END
         FROM cards
         WHERE data != ''
-        AND json_extract(data, '$.v') NOT IN ('reschedule', 'disperse')
+        AND json_extract(data, '$.cd.v') NOT IN ('reschedule', 'disperse')
         AND queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
         {did_query if did_query is not None else ""}
         {recent_query if recent_query is not None else ""}

@@ -2,6 +2,7 @@ import time
 from typing import Dict, Tuple
 
 from anki.cards import Card
+from anki.consts import CARD_TYPE_REV
 from anki.utils import ids2str
 from aqt import mw
 from aqt.utils import tooltip
@@ -44,7 +45,7 @@ def get_siblings(config, did=None, filter_flag=False, filtered_nid_string=""):
     WHERE nid IN (
         SELECT nid
         FROM cards
-        WHERE type = 2
+        WHERE type = {CARD_TYPE_REV}
         AND queue != -1
         {nid_query if filter_flag else ""}
         GROUP BY nid
