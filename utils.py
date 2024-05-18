@@ -1,6 +1,7 @@
-from typing import List
 import json
 import math
+import re
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from typing import List
 
@@ -13,7 +14,117 @@ from anki.stats import (
 )
 from anki.stats_pb2 import CardStatsResponse
 from aqt import mw
+from aqt.utils import showWarning
 
+SCHEDULER_NAME = "Custom Scheduler"
+CUR_SCHEDULER_VERSION = (1, 0, 0)
+CUR_SCHEDULER_VERSION_STR = ".".join(map(str, CUR_SCHEDULER_VERSION))
+GLOBAL_DECK_CONFIG_NAME = "global config for Custom Scheduler"
+GLOBAL_CONFIG_DECK_NAME = 'global config for Custom Scheduler'
+DECK_NAME_PARAM = 'deckName'
+DAYS_UPPER_PARAM = 'daysUpper'
+
+
+def get_version(custom_scheduler):
+    str_matches = re.findall(rf'// {SCHEDULER_NAME} v(\d+)\.(\d+)\.(\d+)', custom_scheduler)
+    try:
+        version = tuple(map(int, str_matches[0]))
+    except IndexError:
+        mw.taskman.run_on_main(lambda: showWarning(
+            f"Please check whether the version of {SCHEDULER_NAME} matches {CUR_SCHEDULER_VERSION_STR}"))
+        return
+    if version != CUR_SCHEDULER_VERSION:
+        mw.taskman.run_on_main(lambda: showWarning(
+            f"Please check whether the version of {SCHEDULER_NAME} matches {CUR_SCHEDULER_VERSION_STR}"))
+        return
+    return version
+
+
+class CustomSchedulerNotFoundError(BaseException):
+    def __init__(self):
+        self.message = "Paste the custom_scheduler.js into custom scheduling in the deck config."
+
+
+def check_custom_scheduler(all_config):
+    if "cardStateCustomizer" not in all_config:
+        raise CustomSchedulerNotFoundError()
+    custom_scheduler = all_config['cardStateCustomizer']
+    if f"// {SCHEDULER_NAME}" not in custom_scheduler:
+        raise CustomSchedulerNotFoundError()
+    get_version(custom_scheduler)
+    return custom_scheduler
+
+
+def _get_regex_patterns():
+    decks = rf'"{DECK_NAME_PARAM}".*"(.*)"'
+    days_uppers = rf'"{DAYS_UPPER_PARAM}"[:\s]+(\d+)'
+    return decks, days_uppers
+
+
+def _remove_comment_line(custom_scheduler):
+    not_comment_line = '\n'.join([re.sub('^ *//..*$', '', _) for _ in custom_scheduler.split('\n')])
+    return not_comment_line
+
+
+class DeckParamsMissingError(BaseException):
+    def __init__(self):
+        self.message = f"""{SCHEDULER_NAME} ERROR: Not all of the deckParams {DECK_NAME_PARAM} or {DAYS_UPPER_PARAM} are defined.
+        Please check your deckParams in custom scheduler.
+        """
+
+
+def get_deck_parameters(custom_scheduler):
+    custom_scheduler = _remove_comment_line(custom_scheduler)
+
+    decks_pat, days_upper_pat = _get_regex_patterns()
+    decks = re.findall(decks_pat, custom_scheduler)
+    days_uppers = re.findall(days_upper_pat, custom_scheduler)
+    if not all([len(x) == len(decks) for x in [
+        decks, days_uppers
+    ]]):
+        raise DeckParamsMissingError()
+    deck_parameters = {
+        deck: {
+            "days_upper": int(days_upper),
+        } for deck, days_upper in zip(
+            decks, days_uppers
+        )
+    }
+
+    deck_parameters = OrderedDict(
+        {name: parameters for name, parameters in sorted(
+            deck_parameters.items(),
+            key=lambda item: item[0],
+            reverse=True
+        )}
+    )
+    return deck_parameters
+
+
+def get_skip_decks(custom_scheduler):
+    pattern = r'[const ]?skipDecks ?= ?(.*);'
+    str_matches = re.findall(pattern, custom_scheduler)
+    try:
+        names = str_matches[0].split(', ')
+    except IndexError:
+        mw.taskman.run_on_main(lambda: showWarning(
+            "Skip decks are not found in the custom scheduler. Please always include it, even if empty"))
+        return []
+    deck_names = list(map(lambda x: x.strip(']["'), names))
+    non_empty_deck_names = list(filter(lambda x: x != '', deck_names))
+
+    decks = []
+    missing_decks = []
+    for skip_deck_name in non_empty_deck_names:
+        deck = mw.col.decks.by_name(skip_deck_name)
+        if deck is not None:
+            decks.append(deck)
+        else:
+            missing_decks.append(skip_deck_name)
+    if len(missing_decks) > 0:
+        mw.taskman.run_on_main(lambda: showWarning(
+            f"Decks {missing_decks} are not found in the collection. Check the deck names."))
+    return decks
 
 def RepresentsInt(s):
     try:
@@ -26,10 +137,10 @@ def reset_ivl_and_due(cid: int, revlogs: List[CardStatsResponse.StatsRevlogEntry
     card = mw.col.get_card(cid)
     card.ivl = int(revlogs[0].interval / 86400)
     due = (
-        math.ceil(
-            (revlogs[0].time + revlogs[0].interval - mw.col.sched.day_cutoff) / 86400
-        )
-        + mw.col.sched.today
+            math.ceil(
+                (revlogs[0].time + revlogs[0].interval - mw.col.sched.day_cutoff) / 86400
+            )
+            + mw.col.sched.today
     )
     if card.odid:
         card.odue = max(due, 1)
@@ -39,7 +150,7 @@ def reset_ivl_and_due(cid: int, revlogs: List[CardStatsResponse.StatsRevlogEntry
 
 
 def filter_revlogs(
-    revlogs: List[CardStatsResponse.StatsRevlogEntry],
+        revlogs: List[CardStatsResponse.StatsRevlogEntry],
 ) -> List[CardStatsResponse.StatsRevlogEntry]:
     return list(filter(lambda x: x.review_kind != REVLOG_CRAM or x.ease != 0, revlogs))
 
@@ -49,8 +160,8 @@ def get_last_review_date(card: Card):
     try:
         last_revlog = list(filter(lambda x: x.button_chosen >= 1, revlogs))[0]
         last_review_date = (
-            math.ceil((last_revlog.time - mw.col.sched.day_cutoff) / 86400)
-            + mw.col.sched.today
+                math.ceil((last_revlog.time - mw.col.sched.day_cutoff) / 86400)
+                + mw.col.sched.today
         )
     except IndexError:
         due = card.odue if card.odid else card.due
@@ -82,13 +193,13 @@ def has_manual_reset(revlogs: List[CardStatsResponse.StatsRevlogEntry]):
         if r.button_chosen == 0:
             return True
         if (
-            last_kind is not None
-            and last_kind in (REVLOG_REV, REVLOG_RELRN)
-            and r.review_kind == REVLOG_LRN
+                last_kind is not None
+                and last_kind in (REVLOG_REV, REVLOG_RELRN)
+                and r.review_kind == REVLOG_LRN
         ):
             return True
         last_kind = r.review_kind
-    return False 
+    return False
 
 
 def get_fuzz_range(interval, elapsed_days):
@@ -138,22 +249,22 @@ def get_rev_conf(card: Card):
         deck_id = card.odid
     try:
         deck_easy_fct = mw.col.decks.config_dict_for_deck_id(
-                deck_id)['rev']['ease4']
+            deck_id)['rev']['ease4']
     except KeyError:
         deck_easy_fct = 1.3
     try:
         deck_hard_fct = mw.col.decks.config_dict_for_deck_id(
-                deck_id)['rev']['hardFactor']
+            deck_id)['rev']['hardFactor']
     except KeyError:
         deck_hard_fct = 1.2
     try:
         deck_max_ivl = mw.col.decks.config_dict_for_deck_id(
-                deck_id)['rev']['maxIvl']
+            deck_id)['rev']['maxIvl']
     except KeyError:
-        deck_max_ivl = 3650        
+        deck_max_ivl = 3650
     try:
         deck_again_fct = mw.col.decks.config_dict_for_deck_id(
-                deck_id)['lapse']['mult']
+            deck_id)['lapse']['mult']
     except KeyError:
         deck_max_ivl = 0
     return {

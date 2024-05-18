@@ -1,6 +1,7 @@
 import math
 import random
 import time
+from builtins import int
 from datetime import datetime, timedelta
 from typing import List, Dict
 
@@ -14,7 +15,7 @@ from anki.consts import (
 from anki.decks import DeckManager
 from anki.utils import ids2str, int_version
 from aqt import mw
-from aqt.utils import tooltip
+from aqt.utils import tooltip, showWarning
 
 from ..configuration import Config
 from ..utils import (
@@ -23,14 +24,21 @@ from ..utils import (
     update_card_due_ivl,
     rotate_number_by_k,
     write_custom_data,
+    check_custom_scheduler,
+    CustomSchedulerNotFoundError,
+    get_deck_parameters,
+    DeckParamsMissingError,
+    get_skip_decks,
+    GLOBAL_DECK_CONFIG_NAME,
+    SCHEDULER_NAME,
 )
 
-DAYS_UPPER = 225
 LOG = False
 
 
 class Scheduler:
     max_ivl: int
+    days_upper: bool
     enable_load_balance: bool
     free_days: List[int]
     due_cnt_perday_from_first_day: Dict[int, int]
@@ -40,6 +48,7 @@ class Scheduler:
 
     def __init__(self) -> None:
         self.max_ivl = 36500
+        self.days_upper = 200
         self.enable_load_balance = False
         self.free_days = []
         self.elapsed_days = 0
@@ -119,7 +128,7 @@ class Scheduler:
         card = self.card
 
         # Get all revs, including manual reschedules
-        revs = mw.col.db.all("select ivl, ease, factor from revlog where cid = ?", card.id)
+        revs = mw.col.db.all("SELECT ivl, ease, factor FROM revlog WHERE cid = ?", card.id)
         if len(revs) > 1:
             prev_rev = revs[len(revs) - 1]
         else:
@@ -157,7 +166,7 @@ class Scheduler:
             mult = mult * rev_conf["deck_easy_fct"]
 
         min_mod_factor = math.sqrt(mult)
-        adj_days_upper = DAYS_UPPER * mult
+        adj_days_upper = self.days_upper * mult
 
         ratio = min(prev_ivl / adj_days_upper, 1)
         mod_factor = min(mult, mult * (1 - ratio) + min_mod_factor * ratio)
@@ -187,7 +196,10 @@ def reschedule(did, recent=False, filter_flag=False, filtered_cids=[]):
 
     def on_done(future):
         mw.progress.finish()
-        tooltip(f"{future.result()} in {time.time() - start_time:.2f} seconds")
+        (result_msg, err_msgs) = future.result()
+        tooltip(f"{result_msg} in {time.time() - start_time:.2f} seconds")
+        if (len(err_msgs) > 0):
+            showWarning("\n".join(err_msgs))
         mw.reset()
 
     fut = mw.taskman.run_in_background(
@@ -198,9 +210,22 @@ def reschedule(did, recent=False, filter_flag=False, filtered_cids=[]):
     return fut
 
 
+RESCHEDULE_STOP_MSG = "Reschedule stopped due to error"
+
+
 def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]):
     config = Config()
     config.load()
+    try:
+        custom_scheduler = check_custom_scheduler(mw.col.all_config())
+    except CustomSchedulerNotFoundError as err:
+        return (RESCHEDULE_STOP_MSG, [err.message])
+    try:
+        deck_parameters = get_deck_parameters(custom_scheduler)
+    except DeckParamsMissingError as err:
+        return (RESCHEDULE_STOP_MSG, [err.message])
+
+    skip_decks = get_skip_decks(custom_scheduler)
 
     undo_entry = mw.col.add_custom_undo_entry("Reschedule")
     mw.taskman.run_on_main(
@@ -208,82 +233,130 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
     )
 
     cnt = 0
+    err_msgs = []
+    decks = sorted(mw.col.decks.all(), key=lambda item: item['name'], reverse=True)
+
     scheduler = Scheduler()
+
     if config.load_balance:
         scheduler.set_load_balance()
         scheduler.free_days = config.free_days
+
     cancelled = False
     DM = DeckManager(mw.col)
 
-    did_query = None
-    if did is not None:
-        did_list = ids2str(DM.deck_and_child_ids(did))
-        did_query = f"AND did IN {did_list}"
+    for deck in decks:
+        # Is this a single deck reschedule from deck menu?
+        if did is not None:
+            deck_name = mw.col.decks.get(did)['name']
+            # If so, skip all other decks
+            if not deck['name'].startswith(deck_name): continue
 
-    recent_query = None
-    if recent:
-        today_cutoff = mw.col.sched.day_cutoff
-        day_before_cutoff = today_cutoff - (config.days_to_reschedule + 1) * 86400
-        recent_query = (
-            f"AND id IN (SELECT cid FROM revlog WHERE id >= {day_before_cutoff * 1000})"
+        dids = DM.deck_and_child_ids(deck['id'])
+        # get dids for skip decks
+        skip_dids = [mw.col.decks.by_name(skip_deck_name)['id'] for skip_deck_name in skip_decks]
+        # filter out skip decks
+        dids = [did for did in dids if did not in skip_dids]
+        if len(dids) == 0:
+            continue
+        dids_str = ids2str(dids)
+        did_query = f"AND did IN {dids_str}"
+
+        try:
+            cur_deck_param = get_current_deck_parameter(deck['name'], deck_parameters)
+        except GlobalConfigNotFoundError as err:
+            err_msgs.append(err.message)
+            break
+
+        if cur_deck_param is None:
+            err_msgs.append(
+                f"{SCHEDULER_NAME} ERROR: Deck parameter was not found for deck '{deck['name']}'"
+            )
+            break
+
+        # Set deck specific parameters
+        scheduler.days_upper = cur_deck_param["days_upper"]
+
+        recent_query = None
+        if recent:
+            today_cutoff = mw.col.sched.day_cutoff
+            day_before_cutoff = today_cutoff - (config.days_to_reschedule + 1) * 86400
+            recent_query = (
+                f"AND id IN (SELECT cid FROM revlog WHERE id >= {day_before_cutoff * 1000})"
+            )
+
+        filter_query = None
+        if filter_flag and len(filtered_cids) > 0:
+            filter_query = f"AND id IN {ids2str(filtered_cids)}"
+
+        cards = mw.col.db.all(
+            f"""
+            SELECT 
+                id,
+                CASE WHEN odid==0
+                THEN did
+                ELSE odid
+                END
+            FROM cards
+            WHERE data != ''
+            AND json_extract(data, '$.cd.v') NOT IN ('reschedule', 'disperse')
+            AND queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
+            {did_query if did_query is not None else ""}
+            {recent_query if recent_query is not None else ""}
+            {filter_query if filter_query is not None else ""}
+        """
+        )
+        # x[0]: cid
+        # x[1]: did
+        # x[2]: max interval
+        cards = map(
+            lambda x: (
+                    x
+                    + [
+                        DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
+                    ]
+            ),
+            cards,
         )
 
-    filter_query = None
-    if filter_flag and len(filtered_cids) > 0:
-        filter_query = f"AND id IN {ids2str(filtered_cids)}"
+        for cid, _, max_interval in cards:
+            if cancelled:
+                break
+            scheduler.max_ivl = max_interval
+            card = reschedule_card(cid, scheduler)
+            if card is None:
+                continue
+            mw.col.update_card(card)
+            mw.col.merge_undo_entries(undo_entry)
+            cnt += 1
+            if cnt % 500 == 0:
+                mw.taskman.run_on_main(
+                    lambda: mw.progress.update(value=cnt, label=f"{cnt} cards rescheduled")
+                )
+                if mw.progress.want_cancel():
+                    cancelled = True
 
-    # Get cards that haven't been rescheduled already
-    cards = mw.col.db.all(
-        f"""
-        SELECT 
-            id,
-            CASE WHEN odid==0
-            THEN did
-            ELSE odid
-            END
-        FROM cards
-        WHERE data != ''
-        AND json_extract(data, '$.cd.v') NOT IN ('reschedule', 'disperse')
-        AND queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
-        {did_query if did_query is not None else ""}
-        {recent_query if recent_query is not None else ""}
-        {filter_query if filter_query is not None else ""}
-    """
-    )
-    # x[0]: cid
-    # x[1]: did
-    # x[2]: max interval
-    cards = map(
-        lambda x: (
-                x
-                + [
-                    DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
-                ]
-        ),
-        cards,
-    )
+    return (f"{cnt} cards rescheduled", err_msgs)
 
-    for cid, _, max_interval in cards:
-        if cancelled:
+
+class GlobalConfigNotFoundError(BaseException):
+    def __init__(self):
+        self.message = f"{SCHEDULER_NAME} ERROR: '{GLOBAL_DECK_CONFIG_NAME}' is not found in the deckParams"
+
+
+def get_current_deck_parameter(deckname, deck_parameters):
+    try:
+        deck_parameter = deck_parameters[GLOBAL_DECK_CONFIG_NAME]
+    except KeyError:
+        raise GlobalConfigNotFoundError()
+    for name, params in deck_parameters.items():
+        if deckname.startswith(name):
+            deck_parameter = params
             break
-        scheduler.max_ivl = max_interval
-        card = reschedule_card(cid, scheduler, filter_flag)
-        if card is None:
-            continue
-        mw.col.update_card(card)
-        mw.col.merge_undo_entries(undo_entry)
-        cnt += 1
-        if cnt % 500 == 0:
-            mw.taskman.run_on_main(
-                lambda: mw.progress.update(value=cnt, label=f"{cnt} cards rescheduled")
-            )
-            if mw.progress.want_cancel():
-                cancelled = True
-
-    return f"{cnt} cards rescheduled"
+    return deck_parameter
 
 
-def reschedule_card(cid, scheduler: Scheduler, recompute=False):
+def reschedule_card(cid, scheduler: Scheduler):
     card = mw.col.get_card(cid)
 
     write_custom_data(card, "v", "reschedule")

@@ -51,7 +51,8 @@ def auto_reschedule(local_rids: List[int], texts: List[str]):
 
     if fut:
         # wait for reschedule to finish
-        texts.append(fut.result())
+        (reschedule_result_msg, _) = fut.result()
+        texts.append(reschedule_result_msg)
 
 
 def auto_disperse(local_rids: List[int], texts: List[str]):
