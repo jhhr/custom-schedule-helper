@@ -289,6 +289,13 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
         if filter_flag and len(filtered_cids) > 0:
             filter_query = f"AND id IN {ids2str(filtered_cids)}"
 
+        not_already_rescheduled_query = None
+        # When doing auto reschedule, we don't want to reschedule cards that were already rescheduled
+        # or dispersed by another Anki instance running this addon
+        # But when running reschedule from the deck menu or main menu, we will reschedule again
+        if filter_flag:
+            not_already_rescheduled_query = f"AND json_extract(data, '$.cd.v') NOT IN ('reschedule', 'disperse')"
+
         cards = mw.col.db.all(
             f"""
             SELECT 
@@ -299,8 +306,8 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
                 END
             FROM cards
             WHERE data != ''
-            AND json_extract(data, '$.cd.v') NOT IN ('reschedule', 'disperse')
             AND queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
+            {not_already_rescheduled_query if not_already_rescheduled_query is not None else ""}
             {did_query if did_query is not None else ""}
             {recent_query if recent_query is not None else ""}
             {filter_query if filter_query is not None else ""}
