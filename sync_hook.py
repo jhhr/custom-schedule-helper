@@ -25,11 +25,10 @@ def review_cid_remote(local_rids: List[int]):
             f"""SELECT DISTINCT cid
             FROM revlog
             WHERE id NOT IN {local_rid_string}
-            AND type < 3
+            AND type < 4
             """
-        )  # type: 0=Learning, 1=Review, 2=relearn, 3=Relearning, 4=Manual
-    ]
-    return remote_reviewed_cids
+        )  # type: 0=Learning, 1=Review, 2=relearn, 3=filtered, 4=Manual
+    ])
 
 
 def auto_reschedule(local_rids: List[int], texts: List[str]):
