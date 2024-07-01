@@ -16,10 +16,9 @@ def create_comparelog(local_rids: List[int], texts: List[str]) -> None:
     local_rids.extend([id for id in mw.col.db.list("SELECT id FROM revlog")])
 
 
-def review_cid_remote(local_rids: List[int]):
+def review_cid_remote(remote_reviewed_cids: List[int], local_rids: List[int]):
     local_rid_string = ids2str(local_rids)
-    # exclude entries where ivl == lastIvl: they indicate a dynamic deck without rescheduling
-    remote_reviewed_cids = [
+    remote_reviewed_cids.extend([
         cid
         for cid in mw.col.db.list(
             f"""SELECT DISTINCT cid
@@ -31,15 +30,13 @@ def review_cid_remote(local_rids: List[int]):
     ])
 
 
-def auto_reschedule(local_rids: List[int], texts: List[str]):
-    if len(local_rids) == 0:
+def auto_reschedule(remote_reviewed_cids: List[int], texts: List[str]):
+    if len(remote_reviewed_cids) == 0:
         return
     config = Config()
     config.load()
     if not config.auto_reschedule_after_sync:
         return
-
-    remote_reviewed_cids = review_cid_remote(local_rids)
 
     fut = reschedule(
         None,
@@ -54,15 +51,14 @@ def auto_reschedule(local_rids: List[int], texts: List[str]):
         texts.append(reschedule_result_msg)
 
 
-def auto_disperse(local_rids: List[int], texts: List[str]):
-    if len(local_rids) == 0:
+def auto_disperse(remote_reviewed_cids: List[int], texts: List[str]):
+    if len(remote_reviewed_cids) == 0:
         return
     config = Config()
     config.load()
     if not config.auto_disperse_after_sync:
         return
 
-    remote_reviewed_cids = review_cid_remote(local_rids)
     remote_reviewed_cid_string = ids2str(remote_reviewed_cids)
     remote_reviewed_nids = [
         nid
@@ -87,11 +83,10 @@ def auto_disperse(local_rids: List[int], texts: List[str]):
         return fut.result()
 
 
-def auto_adjust_ease(local_rids: List[int], texts: List[str]):
-    if len(local_rids) == 0:
+def auto_adjust_ease(remote_reviewed_cids: List[int], texts: List[str]):
+    if len(remote_reviewed_cids) == 0:
         return
 
-    remote_reviewed_cids = review_cid_remote(local_rids)
 
     fut = adjust_ease(
         None,
@@ -107,9 +102,12 @@ def auto_adjust_ease(local_rids: List[int], texts: List[str]):
 
 def init_sync_hook():
     local_rids = []
+    remote_reviewed_cids = []
     texts = []
 
     sync_will_start.append(lambda: create_comparelog(local_rids, texts))
-    sync_did_finish.append(lambda: auto_adjust_ease(local_rids, texts))
-    sync_did_finish.append(lambda: auto_reschedule(local_rids, texts))
-    sync_did_finish.append(lambda: auto_disperse(local_rids, texts))
+    sync_did_finish.append(lambda: review_cid_remote(remote_reviewed_cids, local_rids))
+
+    sync_did_finish.append(lambda: auto_adjust_ease(remote_reviewed_cids, texts))
+    sync_did_finish.append(lambda: auto_reschedule(remote_reviewed_cids, texts))
+    sync_did_finish.append(lambda: auto_disperse(remote_reviewed_cids, texts))
