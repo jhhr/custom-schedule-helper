@@ -97,6 +97,9 @@ customData.hard.fc = 0;
 customData.good.fc = 0;
 customData.easy.fc = 0;
 
+// Global fuzz factor for all ratings.
+const fuzz_factor = set_fuzz_factor();
+
 // Don't adjust intervals for new, learning cards
 if (states.current.normal?.new
     || (states.current.normal?.learning)
@@ -143,6 +146,34 @@ function getDeckname() {
         || document.getElementById("deck")?.getAttribute("deckName");
 }
 
+
+function isReview() {
+  if (states.current.normal?.review !== undefined) {
+    if (states.current.normal?.review !== null) {
+      return true;
+    }
+  }
+  if (states.current.filtered?.rescheduling?.originalState !== undefined) {
+    if (Object.hasOwn(states.current.filtered?.rescheduling?.originalState, 'review')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function apply_fuzz(ivl) {
+  if (ivl < 2.5) return ivl;
+  ivl = Math.round(ivl);
+  let min_ivl = Math.max(2, Math.round(ivl * 0.95 - 1));
+  let max_ivl = Math.round(ivl * 1.05 + 1);
+  if (isReview()) {
+    if (ivl > curRevIvl) {
+      min_ivl = Math.max(min_ivl, scheduledDays + 1);
+    }
+  }
+  return Math.floor(fuzz_factor * (max_ivl - min_ivl + 1) + min_ivl);
+}
+
 function adjustIvl(answerIvl, mult) {
     const ratio = Math.min(answerIvl / adjDaysUpper, 1);
     const minModMult = Math.sqrt(mult);
@@ -152,7 +183,8 @@ function adjustIvl(answerIvl, mult) {
     if (log) console.log('minModMult', minModMult);
     if (log) console.log('modMult', modMult)
     if (log) console.log('modIvl', modIvl);
-    return Math.ceil(modIvl);
+
+    return Math.ceil(apply_fuzz(modIvl));
 }
 
 if (curRevIvl) {
@@ -185,4 +217,35 @@ if (curRevIvl) {
             states.easy.normal.review.scheduledDays = modEasyIvl;
         }
     }
+}
+
+function set_fuzz_factor() {
+  // Note: Originally copied from seedrandom.js package (https://github.com/davidbau/seedrandom)
+  !function(f,a,c){var s,l=256,p="random",d=c.pow(l,6),g=c.pow(2,52),y=2*g,h=l-1;function n(n,t,r){function e(){for(var n=u.g(6),t=d,r=0;n<g;)n=(n+r)*l,t*=l,r=u.g(1);for(;y<=n;)n/=2,t/=2,r>>>=1;return(n+r)/t}var o=[],i=j(function n(t,r){var e,o=[],i=typeof t;if(r&&"object"==i)for(e in t)try{o.push(n(t[e],r-1))}catch(n){}return o.length?o:"string"==i?t:t+"\0"}((t=1==t?{entropy:!0}:t||{}).entropy?[n,S(a)]:null==n?function(){try{var n;return s&&(n=s.randomBytes)?n=n(l):(n=new Uint8Array(l),(f.crypto||f.msCrypto).getRandomValues(n)),S(n)}catch(n){var t=f.navigator,r=t&&t.plugins;return[+new Date,f,r,f.screen,S(a)]}}():n,3),o),u=new m(o);return e.int32=function(){return 0|u.g(4)},e.quick=function(){return u.g(4)/4294967296},e.double=e,j(S(u.S),a),(t.pass||r||function(n,t,r,e){return e&&(e.S&&v(e,u),n.state=function(){return v(u,{})}),r?(c[p]=n,t):n})(e,i,"global"in t?t.global:this==c,t.state)}function m(n){var t,r=n.length,u=this,e=0,o=u.i=u.j=0,i=u.S=[];for(r||(n=[r++]);e<l;)i[e]=e++;for(e=0;e<l;e++)i[e]=i[o=h&o+n[e%r]+(t=i[e])],i[o]=t;(u.g=function(n){for(var t,r=0,e=u.i,o=u.j,i=u.S;n--;)t=i[e=h&e+1],r=r*l+i[h&(i[e]=i[o=h&o+t])+(i[o]=t)];return u.i=e,u.j=o,r})(l)}function v(n,t){return t.i=n.i,t.j=n.j,t.S=n.S.slice(),t}function j(n,t){for(var r,e=n+"",o=0;o<e.length;)t[h&o]=h&(r^=19*t[h&o])+e.charCodeAt(o++);return S(t)}function S(n){return String.fromCharCode.apply(0,n)}if(j(c.random(),a),"object"==typeof module&&module.exports){module.exports=n;try{s=require("crypto")}catch(n){}}else"function"==typeof define&&define.amd?define(function(){return n}):c["seed"+p]=n}("undefined"!=typeof self?self:this,[],Math);
+  // MIT License
+  // Copyright 2019 David Bau.
+  // Permission is hereby granted, free of charge, to any person obtaining a copy
+  // of this software and associated documentation files (the "Software"), to deal
+  // in the Software without restriction, including without limitation the rights
+  // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  // copies of the Software, and to permit persons to whom the Software is
+  // furnished to do so, subject to the following conditions:
+  // The above copyright notice and this permission notice shall be included in all
+  // copies or substantial portions of the Software.
+  // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  // SOFTWARE.
+  let seed = get_seed();
+  const generator = new Math.seedrandom(seed);
+  const fuzz_factor = generator();
+  seed = Math.round(fuzz_factor * 10000);
+  customData.again.seed = (seed + 1) % 10000;
+  customData.hard.seed = (seed + 2) % 10000;
+  customData.good.seed = (seed + 3) % 10000;
+  customData.easy.seed = (seed + 4) % 10000;
+  return fuzz_factor;
 }
