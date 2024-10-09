@@ -1,4 +1,3 @@
-import math
 import random
 import time
 
@@ -75,8 +74,8 @@ def postpone(did):
         ),
         cards,
     )
-    # sort by (elapsed_days / interval - 1), -interval (ascending)
-    cards = sorted(cards, key=lambda x: (x[4] / x[3] - 1, -x[3]))
+    # sort by -interval (ascending)
+    cards = sorted(cards, key=lambda x: -x[3])
     safe_cnt = len(
         list(filter(lambda x: x[4] / x[3] - 1 - 1 < 0.15, cards))
     )
@@ -106,9 +105,14 @@ def postpone(did):
         random.seed(cid + ivl)
         last_review = get_last_review_date(card)
         elapsed_days = mw.col.sched.today - last_review
-        delay = elapsed_days - ivl
+        # delay = elapsed_days - ivl
+        # Postpone the interval between 5% to 10%.
+        # new_ivl = min(
+        #   max(1, math.ceil(ivl * (1.05 + 0.05 * random.random())) + delay), max_ivl
+        # )
+        # The first card is postponed by 1 day, the second by 2 days, and so on.
         new_ivl = min(
-            max(1, math.ceil(ivl * (1.05 + 0.05 * random.random())) + delay), max_ivl
+            elapsed_days + cnt + 1, max_ivl
         )
         card = update_card_due_ivl(card, new_ivl)
         write_custom_data(card, "v", "postpone")
