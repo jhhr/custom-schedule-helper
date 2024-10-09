@@ -74,13 +74,14 @@ def postpone(did):
         ),
         cards,
     )
-    # sort by -interval (ascending)
-    cards = sorted(cards, key=lambda x: -x[3])
+    # sort by interval (ascending)
+    cards = sorted(cards, key=lambda x: x[3])
     safe_cnt = len(
         list(filter(lambda x: x[4] / x[3] - 1 - 1 < 0.15, cards))
     )
 
     (desired_postpone_cnt, resp) = get_desired_postpone_cnt_with_response(safe_cnt, did)
+
     if desired_postpone_cnt is None:
         if resp:
             showWarning("Please enter the number of cards you want to postpone.")
@@ -90,6 +91,10 @@ def postpone(did):
             showWarning("Please enter a positive integer.")
             return
 
+    # filter cards to desired_postpone_cnt, cutting off from the beginning
+    if desired_postpone_cnt < len(cards):
+        cards = cards[len(cards) - desired_postpone_cnt:len(cards) - 1]
+
     undo_entry = mw.col.add_custom_undo_entry("Postpone")
 
     mw.progress.start()
@@ -98,9 +103,6 @@ def postpone(did):
     cnt = 0
 
     for cid, _, _, ivl, elapsed_days, max_ivl in cards:
-        if cnt >= desired_postpone_cnt:
-            break
-
         card = mw.col.get_card(cid)
         random.seed(cid + ivl)
         last_review = get_last_review_date(card)
