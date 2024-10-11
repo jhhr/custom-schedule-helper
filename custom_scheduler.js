@@ -86,11 +86,17 @@ if (!customDataDiv) {
     document.body.appendChild(customDataDiv);
 }
 
-// Set the customData values to 'review' for all buttons so that rescheduling will be applied
+// Set the customData values to 'review' for all buttons so that rescheduling and ease adjustment will be applied
 customData.again.v = 'review';
 customData.hard.v = 'review';
 customData.good.v = 'review';
 customData.easy.v = 'review';
+
+customData.again.e = 'review';
+customData.hard.e = 'review';
+customData.good.e = 'review';
+customData.easy.e = 'review';
+
 // Also set cache value to zero so that new cached values are to be created
 customData.again.fc = 0;
 customData.hard.fc = 0;

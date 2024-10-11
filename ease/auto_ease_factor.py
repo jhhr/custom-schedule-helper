@@ -20,6 +20,7 @@ from aqt import reviewer
 from aqt.utils import tooltip
 
 from ..configuration import Config
+from ..utils import write_custom_data
 
 LOG = False
 
@@ -254,7 +255,9 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
         )
 
     if filter_flag:
-        filter_query = f"AND id IN {ids2str(filtered_cids)}"
+        filter_query = f"""AND id IN {ids2str(filtered_cids)}
+            AND json_extract(json_extract(data, '$.cd'), '$.e') = 'review'"""
+
 
     card_ids = mw.col.db.list(
         f"""
@@ -277,6 +280,7 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
         card.factor = suggested_factor(config,
                                        card=card,
                                        is_deck_adjustment=True)
+        write_custom_data(card, "e", "adjusted")
         if (LOG):
             print("new factor", card.factor)
         mw.col.update_card(card)
