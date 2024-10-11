@@ -93,7 +93,7 @@ def postpone(did):
 
     # filter cards to desired_postpone_cnt, cutting off from the beginning
     if desired_postpone_cnt < len(cards):
-        cards = cards[len(cards) - desired_postpone_cnt:len(cards) - 1]
+        cards = cards[len(cards) - desired_postpone_cnt:len(cards)]
 
     undo_entry = mw.col.add_custom_undo_entry("Postpone")
 
