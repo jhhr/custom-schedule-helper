@@ -56,6 +56,7 @@ def postpone(did):
         FROM cards
         WHERE due <= {mw.col.sched.today}
         AND queue = {QUEUE_TYPE_REV}
+        AND json_extract(json_extract(data, '$.cd'), '$.v') != 'postpone'
         {"AND did IN %s" % did_list if did is not None else ""}
     """
     )
