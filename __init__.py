@@ -1,8 +1,13 @@
 from typing import Callable
 
 from aqt import mw
-from aqt.gui_hooks import deck_browser_will_show_options_menu, state_did_change
-from aqt.qt import QAction
+from aqt.browser import Browser
+from aqt.gui_hooks import (
+    deck_browser_will_show_options_menu,
+    state_did_change,
+    browser_will_show_context_menu
+)
+from aqt.qt import QAction, qconnect, QMenu
 
 from .configuration import Config, run_on_configuration_change
 from .ease import init_ease_adjust_review_hook
@@ -213,6 +218,18 @@ def adjust_menu():
         menu_for_free_5.setChecked(5 in config.free_days)
         menu_for_free_6.setChecked(6 in config.free_days)
 
+
+def on_browser_will_show_context_menu(browser: Browser, menu: QMenu):
+    custom_scheduler_menu = menu.addMenu("Custom Scheduler")
+    postpone_action = QAction("Postpone", browser)
+    qconnect(
+        postpone_action.triggered,
+        lambda: postpone(card_ids=browser.selectedNotesAsCards(), parent=browser),
+    )
+    custom_scheduler_menu.addAction(postpone_action)
+
+
+browser_will_show_context_menu.append(on_browser_will_show_context_menu)
 
 @state_did_change.append
 def state_did_change(_next_state, _previous_state):

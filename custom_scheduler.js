@@ -28,7 +28,7 @@ const deckParams = [
     }
 ];
 
-// To turn off FSRS in specific decks, fill them into the skip_decks list below.
+// To turn off Custom Scheduler in specific decks, fill them into the skip_decks list below.
 // Please don't remove it even if you don't need it.
 const skipDecks = [];
 

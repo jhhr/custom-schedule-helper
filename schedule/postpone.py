@@ -97,10 +97,13 @@ def get_desired_postpone_cnt_with_response(safe_cnt, did):
     return (None, r)
 
 
-def postpone(did):
+def postpone(did=None, card_ids=None, parent=None):
     DM = DeckManager(mw.col)
     if did is not None:
         did_list = ids2str(DM.deck_and_child_ids(did))
+
+    if card_ids is not None:
+        cid_list = ids2str(card_ids)
 
     # json_extract(data, '$.dr')
     # WHERE data != ''
@@ -122,6 +125,7 @@ def postpone(did):
         WHERE due <= {mw.col.sched.today}
         AND queue = {QUEUE_TYPE_REV}
         AND json_extract(json_extract(data, '$.cd'), '$.v') != 'postpone'
+        {"AND id IN %s" % cid_list if card_ids is not None else ""}
         {"AND did IN %s" % did_list if did is not None else ""}
     """
     )
@@ -146,31 +150,33 @@ def postpone(did):
         list(filter(lambda x: x[4] / x[3] - 1 < 0.25, cards))
     )
 
-    res = get_desired_postpone_def_with_response(safe_cnt, did, cards)
-    print(res)
-    if res is None:
-        showWarning("Please enter the number of cards or interval by which you want to postpone.")
-        return
-    else:
+    # If we're in the card browser, don't show the dialog as we're selecting the cards to postpone there
+    if card_ids is None:
+        res = get_desired_postpone_def_with_response(safe_cnt, did, cards)
+        print(res)
+        if res is None:
+            showWarning("Please enter the number of cards or interval by which you want to postpone.")
+            return
+        else:
+            (desired_postpone_cnt, desired_postpone_interval) = res
+            print(desired_postpone_cnt, desired_postpone_interval)
+            if desired_postpone_cnt is not None and desired_postpone_interval is not None:
+                showWarning("Please enter only either the number of cards or the interval.")
+                return
+            if ((desired_postpone_cnt is not None and desired_postpone_cnt <= 0)
+                    or (desired_postpone_interval is not None and desired_postpone_interval <= 0)):
+                showWarning("Please enter a positive integer.")
+                return
+
         (desired_postpone_cnt, desired_postpone_interval) = res
-        print(desired_postpone_cnt, desired_postpone_interval)
-        if desired_postpone_cnt is not None and desired_postpone_interval is not None:
-            showWarning("Please enter only either the number of cards or the interval.")
-            return
-        if ((desired_postpone_cnt is not None and desired_postpone_cnt <= 0)
-                or (desired_postpone_interval is not None and desired_postpone_interval <= 0)):
-            showWarning("Please enter a positive integer.")
-            return
 
-    (desired_postpone_cnt, desired_postpone_interval) = res
-
-    if desired_postpone_interval is not None:
-        # filter cards after desired_postpone_interval
-        cards = list(filter(lambda x: x[3] >= desired_postpone_interval, cards))
-    else:
-        # filter cards to desired_postpone_cnt, cutting off from the beginning
-        if desired_postpone_cnt < len(cards):
-            cards = cards[len(cards) - desired_postpone_cnt:len(cards)]
+        if desired_postpone_interval is not None:
+            # filter cards after desired_postpone_interval
+            cards = list(filter(lambda x: x[3] >= desired_postpone_interval, cards))
+        else:
+            # filter cards to desired_postpone_cnt, cutting off from the beginning
+            if desired_postpone_cnt < len(cards):
+                cards = cards[len(cards) - desired_postpone_cnt:len(cards)]
 
     undo_entry = mw.col.add_custom_undo_entry("Postpone")
 
@@ -188,18 +194,32 @@ def postpone(did):
         # For cards with ivl < 30, postpone by a percentage of the interval
         delay = elapsed_days - ivl
         msg = f"fct={round(fct / 1000, 2)} Elapsed days: {elapsed_days}, IVL: {ivl}"
-        if elapsed_days < 30:
+        if elapsed_days < 90:
             # Postpone the card between 5% to ~35% depending on the factor
-            # the fct is a number between 1300 and 5000, so we divide by 20000 to get a number between 0.065 and 0.25
-            mult = max(1.05, 1.00 + fct / 20000 + 0.5 * random.random() - min(0.2, ivl / (30 * 5)))
+            # the fct is a number between 1300 and 5000, generally ~2500,
+            # so we divide by 15000 to get a number between 0.087 and 0.33, generally ~0.17
+            base_mult = max(0.05, fct / 15000)
+            # Randomly add a multiplier between 0 and 0.50, giving bigger variance with smaller elapsed days
+            # and then reduce the randomness as we go past 7 days.
+            random_mult = 0.25 * random.random() * max((min(1, 7 / elapsed_days)), 2)
+            mult = 1 + (((base_mult + random_mult)
+                         # Reduce the multiplier as elapsed days closes to 90 days, at  which point it'll be 1.
+                         * (1 - elapsed_days / 90) + (elapsed_days / 90) * 0.05
+                         # Additionally reduce the multiplier when were close to small elapsed days like 3
+                         ) * (min(1, elapsed_days / 7)))
             new_ivl = min(
-                max(1, math.ceil(elapsed_days * mult)), max_ivl
+                max_ivl,  # Don't go over the maximum interval
+                max(
+                    1,  # Don't set interval to less than 1
+                    math.floor(elapsed_days * mult),  # Postpone by a percentage of elapsed days
+                    elapsed_days  # Don't lower the due date
+                )
             )
             # Set the increment to the maximum of the new interval and the elapsed days we've postponed
             # so far, thus when start postponing in 1 day increments, we'll start from the next day after
             # the last postponed card.
             ivl_incr = max(new_ivl - elapsed_days, ivl_incr)
-            msg += f" Percentage increase, Delay: {delay}, IVL mult: {round(mult, 2)}, New IVL: {new_ivl}, IVL incr: {ivl_incr}"
+            msg += f" Percentage increase, Delay: {delay}, IVL mult: {round(mult, 2)}, Raw new IVL: {round(elapsed_days * mult, 2)}, New IVL: {new_ivl}, IVL incr: {ivl_incr}"
         else:
             ivl_incr += 1
             # This card is postponed by 1 more day, the next by 2 more days, and so on.
