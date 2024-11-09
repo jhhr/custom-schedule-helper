@@ -258,7 +258,6 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
         filter_query = f"""AND id IN {ids2str(filtered_cids)}
             AND json_extract(json_extract(data, '$.cd'), '$.e') = 'review'"""
 
-
     card_ids = mw.col.db.list(
         f"""
         SELECT 
