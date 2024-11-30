@@ -122,8 +122,8 @@ def postpone(did=None, card_ids=None, parent=None):
             ELSE {mw.col.sched.today} - (odue - ivl)
             END
         FROM cards
-        WHERE due <= {mw.col.sched.today}
-        AND queue = {QUEUE_TYPE_REV}
+        WHERE queue = {QUEUE_TYPE_REV}
+        {f"AND due <= {mw.col.sched.today}" if card_ids is None else ""}
         AND json_extract(json_extract(data, '$.cd'), '$.v') != 'postpone'
         {"AND id IN %s" % cid_list if card_ids is not None else ""}
         {"AND did IN %s" % did_list if did is not None else ""}
