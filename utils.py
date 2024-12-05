@@ -3,7 +3,7 @@ import math
 import re
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Union
 
 from anki.cards import Card
 from anki.stats import (
@@ -20,9 +20,9 @@ SCHEDULER_NAME = "Custom Scheduler"
 CUR_SCHEDULER_VERSION = (1, 0, 0)
 CUR_SCHEDULER_VERSION_STR = ".".join(map(str, CUR_SCHEDULER_VERSION))
 GLOBAL_DECK_CONFIG_NAME = "global config for Custom Scheduler"
-GLOBAL_CONFIG_DECK_NAME = 'global config for Custom Scheduler'
-DECK_NAME_PARAM = 'deckName'
-DAYS_UPPER_PARAM = 'daysUpper'
+GLOBAL_CONFIG_DECK_NAME = "global config for Custom Scheduler"
+DECK_NAME_PARAM = "deckName"
+DAYS_UPPER_PARAM = "daysUpper"
 
 
 def get_version(custom_scheduler):
@@ -219,19 +219,27 @@ def due_to_date(due: int) -> str:
 def power_forgetting_curve(elapsed_days, stability):
     return (1 + elapsed_days / (9 * stability)) ** -1
 
+def add_dict_key_value( dict: dict,key: str, value: Union[str, None]):
+    if value is not None:
+        dict[key] = value
+    elif key in dict:
+        dict.pop(key, None)
 
-def write_custom_data(card: Card, key, value):
+def write_custom_data(
+    card: Card,
+    key: str = None,
+    value: str = None,
+    key_values: list[tuple[str, str]] = None,
+):
     if card.custom_data != "":
         custom_data = json.loads(card.custom_data)
-        if value is None:
-            custom_data.pop(key, None)
-        else:
-            custom_data[key] = value
     else:
-        if value is None:
-            return
-        else:
-            custom_data = {key: value}
+        custom_data = {}
+    if key_values is not None:
+        for k, v in key_values:
+            add_dict_key_value(custom_data,k, v)
+    else:
+        add_dict_key_value(custom_data, key, value)
     card.custom_data = json.dumps(custom_data)
 
 
