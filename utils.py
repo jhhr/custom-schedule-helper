@@ -141,7 +141,6 @@ def get_current_deck_parameter(deckname, deck_parameters):
         if deckname.startswith(name):
             deck_params.update(params)
             # continue looping to override with more specific deck params
-    print(deckname, json.dumps(deck_params, indent=2))
     return deck_params
 
 

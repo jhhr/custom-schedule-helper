@@ -69,14 +69,14 @@ if (displaySchedulerState) {
         padding: 0.2em 0.6em;
         margin: 0;
         border-radius: 0.3em;
-        border: none;
+        border: 1px solid transparent;
         cursor: pointer;
         z-index: 1000;
         float: right;
         pointer-events: all;
       }
       #scheduler_status_trigger:hover {
-        opacity: 0.9;
+        border-color: gray;
       }
       #scheduler_status {
         position: relative;
@@ -108,7 +108,7 @@ if (displaySchedulerState) {
         opacity: 0.9;
       }
       #scheduler_status_container.inactive {
-        opacity: 0.3;
+        opacity: 0.5;
       }
     `;
     document.head.appendChild(schedulerStatusStyle);
@@ -458,12 +458,10 @@ function storeData() {
 
     if (Persistence.isAvailable()) {
         currentCustomData.rl = decompressReviewList(currentCustomData.rl);
-        console.log("Decompressed review list", currentCustomData.rl.length);
         Persistence.setItem(
             "customData",
             currentCustomData
         );
-        console.log("Stored custom data", JSON.stringify(currentCustomData, null, 4));
         Persistence.setItem(
           "schedulerStatusHTML",
           document.getElementById("scheduler_status_container")?.outerHTML
@@ -472,5 +470,8 @@ function storeData() {
           "schedulerStatusStyle",
           document.getElementById("scheduler_status_style")?.outerHTML
         );
+        // Fire a custom event to notify that template code can listen to and then try
+        // to get the data (Only works on AnkiDroid)
+        window.dispatchEvent(new Event("SchedulerDataStored"));
     }
 }
