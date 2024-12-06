@@ -48,16 +48,89 @@ const displaySchedulerState = true;
 
 // display if Custom Scheduler is enabled
 if (displaySchedulerState) {
-    const prev = document.getElementById('scheduler_status');
-    if (prev) {
-        prev.remove();
+    const prevStatus = document.getElementById('scheduler_status');
+    if (prevStatus) {
+        prevStatus.remove();
     }
-    var schedulerStatus = document.createElement('span');
+    // Create an element to display the scheduler status that will be shown as a popover
+    var schedulerStatus = document.createElement('div');
     schedulerStatus.innerHTML = "<br>Custom scheduler enabled";
     schedulerStatus.id = "scheduler_status";
-    schedulerStatus.style.cssText = "font-size:12px;opacity:0.5;font-family:monospace;text-align:left;line-height:1em;";
-    document.body.appendChild(schedulerStatus);
-    document.getElementById("qa").style.cssText += "min-height:50vh;";
+    schedulerStatus.style.cssText = `
+      position: relative;
+      top: 1.8em;
+      right: 0;
+      display: none;
+      padding: 0.5em;
+      font-family: monospace;
+      text-align: left;
+      line-height: 1em;"
+      border-radius: 0.3em;
+      border: 1px solid darkgray;
+      background-color: #303030;
+      color: white;
+      `;
+    let schedulerStatusContainer = document.getElementById(
+      "scheduler_status_container"
+    );
+    if (!schedulerStatusContainer) {
+      schedulerStatusContainer = document.createElement("div");
+      const trigger = document.createElement("button");
+      trigger.id = "scheduler_status_trigger";
+      trigger.innerHTML = "🛠️ ▼";
+      trigger.style.cssText = `
+        font-size: 0.9em;
+        padding: 0.2em 0.6em;
+        margin: 0;
+        border-radius: 0.3em;
+        border: none;
+        cursor: pointer;
+        z-index: 1000;
+        float: right;
+        pointer-events: all;
+        `;
+      schedulerStatusContainer.appendChild(trigger);
+      schedulerStatusContainer.id = "scheduler_status_container";
+      // position the trigger to the top right corner of the window
+      schedulerStatusContainer.style.cssText = `  
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 0.9em;
+        opacity: 0.3;
+        font-family: monospace;
+        z-index: 1000;
+        cursor: pointer;
+        pointer-events: all;
+        `;
+      schedulerStatusContainer.setAttribute("onclick", `
+        event.stopPropagation();
+        (function() {
+          function hide() {
+            document.getElementById("scheduler_status").style.display = "none";
+            document.getElementById("scheduler_status_trigger").innerHTML = "🛠️ ▼"
+            document.getElementById("scheduler_status_container").style.opacity = 0.3;
+          };
+          function show() {
+            document.getElementById("scheduler_status").style.display = "block";
+            document.getElementById("scheduler_status_trigger").innerHTML = "🛠️ ▲"
+            document.getElementById("scheduler_status_container").style.opacity = 0.9;
+          }
+          switch (document.getElementById("scheduler_status").style.display) {
+            case "none":
+              show();
+              break;
+            case "block":
+              hide();
+              break;
+          }
+          document.body.onclick = hide;
+        })();
+      `
+      );
+      document.body.appendChild(schedulerStatusContainer);
+    }
+    schedulerStatusContainer.appendChild(schedulerStatus);
 }
 
 const globalDeckParams = deckParams.find(deck => deck.deckName === "global config for Custom Scheduler");
@@ -104,7 +177,7 @@ if (displaySchedulerState) {
     // The last matched deck parameters name will the deckName, parameters will be a combination
     // of global parameters and all parent deck parameters
     schedulerStatus.innerHTML += `<br><strong>Deck parameters:</strong>
-<ul style="margin-left: 30%;">
+<ul">
 ${Object.entries(currentDeckParams).map(([key, value]) => `<li>${key}: ${value}</li>`).join('')}
 </ul>`;
 }
@@ -361,8 +434,8 @@ function storeData() {
         );
         console.log("Stored custom data", JSON.stringify(currentCustomData, null, 4));
         Persistence.setItem(
-            "schedulerStatusHTML",
-            document.getElementById("scheduler_status")?.outerHTML
+          "schedulerStatusHTML",
+          document.getElementById("scheduler_status_container")?.outerHTML
         );
     }
 }
