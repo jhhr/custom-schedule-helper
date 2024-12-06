@@ -150,8 +150,12 @@ def compress_review_list(review_list):
         raise ValueError("All integers must be between 1 and 4")
     
     # Truncate the list if it is too long
+    # If this happens, the list's length will no match a total rep count, which makes it no longer
+    # possible to know, if the list is padded with zeroes or not
+    # To avoid this, truncate the list to a multiple of 4
     if len(review_list) > MAX_REVIEWS:
         review_list = review_list[-MAX_REVIEWS:]
+        review_list = review_list[:len(review_list) - len(review_list) % 4]
 
     # Pack 2-bit integers into bytes
     packed_bytes = bytearray()
@@ -167,6 +171,8 @@ def compress_review_list(review_list):
             bits_filled = 0
 
     # If there are remaining bits, pad the last byte
+    # NOTE: this effectively adds zeroes to the end of the list which were not originally there
+    # To get the original list back, get a rep count and truncate the list to that length
     if bits_filled > 0:
         current_byte <<= (8 - bits_filled)
         packed_bytes.append(current_byte)
