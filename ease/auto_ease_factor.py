@@ -121,13 +121,14 @@ def suggested_factor(config,
     if new_answer is None and len(card_settings['factor_list']) > 1:
         card_settings['factor_list'] = card_settings['factor_list'][:-1]
 
-    return calculate_ease(config,
+    new_factor, success_rate = calculate_ease(config,
                           deck_starting_ease,
                           card_settings,
                           leashed)
     if set_custom_data:
         write_custom_data(card, key_values=[
             {"key": "e", "value": "a"},
+            {"key": "sr", "value": round(success_rate, 3)},
             {"key": "rl", "value": compress_review_list(card_settings['review_list'])},
         ])
     return new_factor

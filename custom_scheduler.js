@@ -44,7 +44,7 @@ const skipDecks = [];
 
 // Custom Scheduler supports displaying memory states of cards.
 // Enable it for debugging if you encounter something wrong.
-const displaySchedulerState = false;
+const displaySchedulerState = true;
 
 // display if Custom Scheduler is enabled
 if (displaySchedulerState) {
@@ -145,10 +145,17 @@ const curRevIvl = revObj?.scheduledDays;
 
 const {
     daysUpper: daysUpper,
+    minAgainMult = 0,
 } = currentDeckParams;
 const minModFct = Math.sqrt(curFct);
 const adjDaysUpper = daysUpper * curFct;
 
+const againRevObj = states.again.normal?.review
+  || states.again.normal?.relearning?.review
+  || states.again.filtered?.rescheduling?.originalState?.review
+  || states.again.filtered?.rescheduling?.originalState?.relearning.review
+  || {};
+const { scheduledDays: againIvl } = againRevObj;
 const {
     scheduledDays: hardIvl,
 } = states.hard.normal?.review || {}
@@ -158,6 +165,7 @@ const {
 const {
     scheduledDays: easyIvl,
 } = states.easy.normal?.review || {}
+const againIvlMult = Number.isFinite(againIvl) && againIvl / curRevIvl;
 const hardIvlMult = Number.isFinite(hardIvl) && hardIvl / curRevIvl;
 const easyIvlMult = Number.isFinite(easyIvl) && Number.isFinite(goodIvl) && easyIvl / goodIvl;
 
@@ -165,6 +173,7 @@ if (log) console.log('adjDaysUpper', adjDaysUpper)
 if (log) console.log('curFct', curFct);
 if (log) console.log('minModFct', minModFct);
 if (log) console.log('curRevIvl', curRevIvl)
+if (log) console.log('againIvlMult', againIvlMult);
 if (log) console.log('hardIvlMult', hardIvlMult);
 if (log) console.log('easyIvlMult', easyIvlMult);
 
@@ -220,14 +229,24 @@ function adjustIvl(answerIvl, mult) {
 }
 
 if (curRevIvl) {
-    let goodModIvl;
-    if (goodIvl) {
-        goodModIvl = adjustIvl(goodIvl, curFct);
-        if (log) console.log('mod good', goodIvl, goodModIvl);
-        if (states.good.normal?.review) {
-            states.good.normal.review.scheduledDays = goodModIvl;
+    if (againIvlMult) {
+        let { sr: successRate = 0.99 } = currentCustomData;
+        successRate = parseFloat(successRate);
+        // Use successRate to adjust the again multiplier from default
+        // The lower the sucessRate, the more answering again reduces ivl
+        const modAgainMult = Math.max(againIvlMult - (1 - successRate), minAgainMult);
+        const modAgainIvl = Math.ceil(curRevIvl * modAgainMult);
+        if (log) {
+            console.log('mod again', againIvl, modAgainIvl);
+            console.log("modAgainMult", modAgainMult);
+            console.log('minAgainMult', minAgainMult);
+            console.log('successRate', successRate);
+        }
+        if (againRevObj) {
+          againRevObj.scheduledDays = modAgainIvl;
         }
     }
+    
 
     if (hardIvl && hardIvlMult && hardIvlMult >= 1 && goodIvl) {
         const hardGoodRatio = Math.min(hardIvl / goodIvl, 1);
@@ -240,6 +259,15 @@ if (curRevIvl) {
         if (states.hard.normal?.review) {
             states.hard.normal.review.scheduledDays = modHardIvl;
         }
+    }
+
+    let goodModIvl;
+    if (goodIvl) {
+      goodModIvl = adjustIvl(goodIvl, curFct);
+      if (log) console.log("mod good", goodIvl, goodModIvl);
+      if (states.good.normal?.review) {
+        states.good.normal.review.scheduledDays = goodModIvl;
+      }
     }
 
     if (goodModIvl && easyIvlMult) {

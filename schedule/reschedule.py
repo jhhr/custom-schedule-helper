@@ -33,6 +33,7 @@ from ..utils import (
     get_skip_decks,
     SCHEDULER_NAME,
     DAYS_UPPER_PARAM,
+    MIN_AGAIN_MULT_PARAM,
 )
 
 LOG = False
@@ -51,6 +52,7 @@ class Scheduler:
     def __init__(self) -> None:
         self.max_ivl = 36500
         self.days_upper = 200
+        self.min_again_mult = 0
         self.enable_load_balance = False
         self.free_days = []
         self.elapsed_days = 0
@@ -130,7 +132,7 @@ class Scheduler:
         card = self.card
 
         # Get all revs, including manual reschedules
-        revs = mw.col.db.all("SELECT ivl, ease, factor FROM revlog WHERE cid = ?", card.id)
+        revs = mw.col.db.all("SELECT ivl, ease, factor, type FROM revlog WHERE cid = ?", card.id)
         if len(revs) > 1:
             prev_rev = revs[len(revs) - 1]
         else:
@@ -139,6 +141,7 @@ class Scheduler:
         prev_ivl = prev_rev[0]
         prev_rev_ease = prev_rev[1]
         prev_factor = prev_rev[2]
+        prev_type_is_relearning = prev_rev[3] == 2
 
         rev_conf = get_rev_conf(card)
         # Default factor from rev
@@ -146,10 +149,40 @@ class Scheduler:
         # This is the normal good mult
         mult = prev_factor / 1000
 
-        # Again or manual reschedule
-        # Again never increases ivl so we do nothing in that case
-        if prev_rev_ease == 1 or prev_rev_ease == 0:
+        # Manual reschedule
+        if prev_rev_ease == 0:
             return self.apply_fuzz(card.ivl)
+        # Again
+        elif prev_rev_ease == 1:
+            # Interval is adjusted downward further according to success rate
+            custom_data = None
+            if card.custom_data != "":
+                custom_data = json.loads(card.custom_data)
+            if custom_data and "sr" in custom_data:
+                success_rate = custom_data["sr"]
+                mod_again_mult = max(
+                    rev_conf["deck_again_fct"] - (1 - success_rate),
+                    self.min_again_mult
+                )
+                mod_ivl = min(card.ivl, prev_ivl * mod_again_mult)
+                new_interval = self.apply_fuzz(mod_ivl)
+                if LOG:
+                    print("")
+                    print("card.id", card.id)
+                    print("mod_again_mult", mod_again_mult)
+                    print("min_again_mult", self.min_again_mult)
+                    print("success_rate", success_rate)
+                    print("prev_ivl", prev_ivl)
+                    print("prev_factor", prev_factor)
+                    print("mod_ivl", mod_ivl)
+                    print("new_interval", new_interval)
+                  # Again doesn't use the factor and the multiplier is always <=1
+                  # We don't apply the days_upper limit here, because that'd increase the interval
+                  # So, return right away
+                return min(int(round(new_interval)), 1)
+            else:
+                # Success rate missing
+                return self.apply_fuzz(card.ivl)
         # Hard
         elif prev_rev_ease == 2:
             # Here too, only adjust ivl, if it's increasing
@@ -271,7 +304,8 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
             break
 
         # Set deck specific parameters
-        scheduler.days_upper = cur_deck_param["days_upper"]
+        scheduler.days_upper = cur_deck_param[DAYS_UPPER_PARAM]
+        scheduler.min_again_mult = cur_deck_param[MIN_AGAIN_MULT_PARAM]
 
         recent_query = None
         if recent:
