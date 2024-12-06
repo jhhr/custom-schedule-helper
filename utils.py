@@ -1,9 +1,10 @@
 import json
 import math
+import base64
 import re
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import List, Union, Optional, TypedDict
+from typing import List, Union, Optional, TypedDict, Literal
 
 from anki.cards import Card
 from anki.stats import (
@@ -364,3 +365,84 @@ def get_rev_conf(card: Card):
         'deck_max_ivl': deck_max_ivl,
         'deck_again_fct': deck_again_fct,
     }
+
+
+def compress_review_list(review_list: List[Literal[1, 2, 3, 4]]) -> str:
+    """
+    Compress a list of ease values into a base64-encoded string.
+    This can be used to compress dozens of ease values such that the 100 byte limit of the
+    card.custom_data is not exceeded.
+    
+    The list is compressed by packing 2-bit integers into bytes.
+    Each integer is between 1 and 4, so it can be represented by 2 bits.
+    The integers are packed into bytes, with the least significant bits being filled first.
+    If the number of integers is not a multiple of 4, the last byte is padded with zeroes.
+    
+    The compressed string is then encoded to base64 to reduce its size.
+    
+    The original list can be recovered by decoding the base64 string and unpacking the bytes.
+    
+    :param review_list: A list of integers between 1 and 4
+    :return: A base64-encoded string representing the compressed
+    """
+    # Ensure all integers are between 1 and 4
+    if not all(1 <= x <= 4 for x in review_list):
+        raise ValueError("All integers must be between 1 and 4")
+    
+    # Truncate the list if it is too long
+    # If this happens, the list's length will no match a total rep count, which makes it no longer
+    # possible to know, if the list is padded with zeroes or not
+    # To avoid this, truncate the list to a multiple of 4
+    if len(review_list) > MAX_REVIEWS:
+        review_list = review_list[-MAX_REVIEWS:]
+        review_list = review_list[:len(review_list) - len(review_list) % 4]
+
+    # Pack 2-bit integers into bytes
+    packed_bytes = bytearray()
+    current_byte = 0
+    bits_filled = 0
+
+    for num in review_list:
+        current_byte = (current_byte << 2) | (num - 1)
+        bits_filled += 2
+        if bits_filled == 8:
+            packed_bytes.append(current_byte)
+            current_byte = 0
+            bits_filled = 0
+
+    # If there are remaining bits, pad the last byte
+    # NOTE: this effectively adds zeroes to the end of the list which were not originally there
+    # To get the original list back, get a rep count and truncate the list to that length
+    if bits_filled > 0:
+        current_byte <<= (8 - bits_filled)
+        packed_bytes.append(current_byte)
+
+    # Encode the bytes to a base64 string
+    compressed_str = base64.b64encode(packed_bytes).decode('utf-8')
+    return compressed_str
+
+
+def calculate_max_review_list_length(fixed_size):
+    """
+    Given a some fixed size in bytes that would already take space in the card.custom_data field,
+    estimate the maximum length of a review list that can be stored in the card.custom_data field.
+    """
+    max_size = 100 - fixed_size
+    # Each base64 character encodes 6 bits, so we need to account for base64 encoding overhead
+    max_bits = max_size * 6 // 8 * 8
+    max_reviews = max_bits // 2
+    return max_reviews
+
+# Calculate the maximum length of a review list that can be stored in card.custom_data
+# assuming that the the existing values in card.custom_data already take up some space
+FIXED_SIZE = len(json.dumps({
+    # auto ease factor modified marker, value is a single char, always present
+    "e": "0",
+    # reschedule/postpone/advance/disperse marker, value is a single char, always present
+    "v": "0",
+    # seed, set in the js custom scheduler, not entirely always present
+    "s": 1234, 
+    # success_rate cache, added by auto ease factor, always present
+    "sr": 0.956
+    }, separators=(',', ':')))
+MAX_REVIEWS = calculate_max_review_list_length(FIXED_SIZE)
