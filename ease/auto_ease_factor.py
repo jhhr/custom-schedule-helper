@@ -120,7 +120,6 @@ def suggested_factor(config,
     # Ignore latest ease if you are applying algorithm from deck settings
     if new_answer is None and len(card_settings['factor_list']) > 1:
         card_settings['factor_list'] = card_settings['factor_list'][:-1]
-
     new_factor, success_rate = calculate_ease(config,
                           deck_starting_ease,
                           card_settings,
@@ -278,7 +277,7 @@ def adjust_factor_when_review(ease_tuple,
     return ease_tuple
 
 
-def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtered_cids=[]):
+def adjust_ease_factors_background(did=None, recent=False, only_marked=False, card_ids=None):
     config = Config()
     config.load()
 
@@ -309,9 +308,11 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
             f"AND id IN (SELECT cid FROM revlog WHERE id >= {day_before_cutoff * 1000})"
         )
 
-    if filter_flag:
-        filter_query = f"""AND id IN {ids2str(filtered_cids)}
-            AND json_extract(json_extract(data, '$.cd'), '$.e') = 0"""
+    if card_ids:
+        card_ids_query = f"AND id IN {ids2str(card_ids)}"
+        
+    if only_marked:
+        marked_query = "AND json_extract(json_extract(data, '$.cd'), '$.e') = 1"
 
     card_ids = mw.col.db.list(
         f"""
@@ -321,7 +322,8 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
         WHERE queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
         {did_query if did is not None else ""}
         {recent_query if recent else ""}
-        {filter_query if filter_flag else ""}
+        {card_ids_query if card_ids else ""}
+        {marked_query if only_marked else ""}
     """
     )
 
@@ -349,7 +351,7 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
     return f"Adjusted ease for {cnt} cards"
 
 
-def adjust_ease(did, recent=False, filter_flag=False, filtered_cids=[]):
+def adjust_ease(did=None, recent=False, marked_only=False, card_ids=None, parent=None):
     start_time = time.time()
 
     def on_done(future):
@@ -358,7 +360,7 @@ def adjust_ease(did, recent=False, filter_flag=False, filtered_cids=[]):
         mw.reset()
 
     fut = mw.taskman.run_in_background(
-        lambda: adjust_ease_factors_background(did, recent, filter_flag, filtered_cids),
+        lambda: adjust_ease_factors_background(did, recent, marked_only, card_ids),
         on_done,
     )
 

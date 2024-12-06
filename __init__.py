@@ -222,11 +222,17 @@ def adjust_menu():
 def on_browser_will_show_context_menu(browser: Browser, menu: QMenu):
     custom_scheduler_menu = menu.addMenu("Custom Scheduler")
     postpone_action = QAction("Postpone", browser)
+    adjust_ease_action = QAction("Adjust Ease", browser)
     qconnect(
         postpone_action.triggered,
         lambda: postpone(card_ids=browser.selectedNotesAsCards(), parent=browser),
     )
+    qconnect(
+        adjust_ease_action.triggered,
+        lambda: adjust_ease(card_ids=browser.selectedNotesAsCards(), parent=browser),
+    )
     custom_scheduler_menu.addAction(postpone_action)
+    custom_scheduler_menu.addAction(adjust_ease_action)
 
 
 browser_will_show_context_menu.append(on_browser_will_show_context_menu)

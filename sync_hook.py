@@ -89,10 +89,9 @@ def auto_adjust_ease(remote_reviewed_cids: List[int], texts: List[str]):
 
 
     fut = adjust_ease(
-        None,
         recent=False,
-        filter_flag=True,
-        filtered_cids=set(remote_reviewed_cids),
+        marked_only=True,
+        card_ids=set(remote_reviewed_cids),
     )
 
     if fut:
