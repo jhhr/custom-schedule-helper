@@ -194,7 +194,7 @@ def disperse_siblings_backgroud(
             card = mw.col.get_card(cid)
             last_review = get_last_review_date(card)
             card = update_card_due_ivl(card, due - last_review)
-            write_custom_data(card, "v", "disperse")
+            write_custom_data(card, "v", "d")
             mw.col.update_card(card)
             mw.col.merge_undo_entries(undo_entry)
             card_cnt += 1
@@ -241,7 +241,7 @@ def disperse_siblings_when_review(reviewer, card: Card, ease):
         old_due = card.odue if card.odid else card.due
         last_review = get_last_review_date(card)
         card = update_card_due_ivl(card, due - last_review)
-        write_custom_data(card, "v", "disperse")
+        write_custom_data(card, "v", "d")
         mw.col.update_card(card)
         mw.col.merge_undo_entries(undo_entry)
         card_cnt += 1

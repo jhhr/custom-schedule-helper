@@ -109,43 +109,32 @@ ${Object.entries(currentDeckParams).map(([key, value]) => `<li>${key}: ${value}<
 </ul>`;
 }
 
-// Write customData to DOM so we can read it in the template with javascript, if we want
-// And also handle setting cached content into alt_element_id elements
-var customDataDiv = document.getElementById("customData");
-if (!customDataDiv) {
-    customDataDiv = document.createElement("div");
-    customDataDiv.id = "customData";
-    var currentCustomData = JSON.parse(states.current.customData);
-    Object.entries(currentCustomData).forEach(([key, value]) => {
-        customDataDiv.dataset[key] = value;
-    });
-    document.body.appendChild(customDataDiv);
-}
+const currentCustomData = JSON.parse(states.current.customData);
+storeData();
 
-// Set the customData values to 'review' for all buttons so that rescheduling and ease adjustment will be applied
-customData.again.v = 'review';
-customData.hard.v = 'review';
-customData.good.v = 'review';
-customData.easy.v = 'review';
+// Set the customData values to 0 for all buttons so that rescheduling and ease adjustment will be applied
+customData.again.v = 0;
+customData.hard.v = 0;
+customData.good.v = 0;
+customData.easy.v = 0;
 
-customData.again.e = 'review';
-customData.hard.e = 'review';
-customData.good.e = 'review';
-customData.easy.e = 'review';
+customData.again.e = 0;
+customData.hard.e = 0;
+customData.good.e = 0;
+customData.easy.e = 0;
 
-// Also set cache value to zero so that new cached values are to be created
 customData.again.fc = 0;
 customData.hard.fc = 0;
 customData.good.fc = 0;
 customData.easy.fc = 0;
 
-// Don't adjust intervals for new, learning cards
+// Don't adjust intervals for new or new cards still in learning steps
 if (states.current.normal?.new
     || (states.current.normal?.learning)
     || states.current.filtered?.rescheduling.originalState.new
     || states.current.filtered?.rescheduling.originalState.learning) return;
 
-// Do adjust for reviews
+// Do adjust for reviews or cards in relearning steps
 const revObj = states.current.normal?.review
     || states.current.normal?.relearning?.review
     || states.current.filtered?.rescheduling?.originalState?.review
@@ -263,14 +252,14 @@ if (curRevIvl) {
 }
 
 function get_seed() {
-    if (!customData.again.seed | !customData.hard.seed | !customData.good.seed | !customData.easy.seed) {
+    if (!customData.again.s | !customData.hard.s | !customData.good.s | !customData.easy.s) {
         if (typeof ctx !== 'undefined' && ctx.seed) {
             return ctx.seed;
         } else {
             return document.getElementById("qa").innerText;
         }
     } else {
-        return customData.good.seed;
+        return customData.good.s;
     }
 }
 function setFuzzFactor() {
@@ -297,9 +286,55 @@ function setFuzzFactor() {
   const generator = new Math.seedrandom(seed);
   const fuzz_factor = generator();
   seed = Math.round(fuzz_factor * 10000);
-  customData.again.seed = (seed + 1) % 10000;
-  customData.hard.seed = (seed + 2) % 10000;
-  customData.good.seed = (seed + 3) % 10000;
-  customData.easy.seed = (seed + 4) % 10000;
+  customData.again.s = (seed + 1) % 10000;
+  customData.hard.s = (seed + 2) % 10000;
+  customData.good.s = (seed + 3) % 10000;
+  customData.easy.s = (seed + 4) % 10000;
   return fuzz_factor;
+}
+
+if (log) console.log(JSON.stringify(states, null, 4));
+if (log) console.log(JSON.stringify(customData, null, 4));
+
+function decompressReviewList(compressedStr) {
+  if (!compressedStr) {
+    return [];
+}
+  // Decode the base64 string to a byte array
+  const binaryString = atob(compressedStr);
+  const packedBytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    packedBytes[i] = binaryString.charCodeAt(i);
+  }
+
+  const reviewList = [];
+  for (let byte of packedBytes) {
+    for (let i = 3; i >= 0; i--) {
+      const value = ((byte >> (i * 2)) & 0b11) + 1;
+      reviewList.push(value);
+    }
+  }
+
+  return reviewList;
+}
+
+// Store data we want to show in the card back
+// or just access in either front or back
+function storeData() {
+    // v1.1.8 - https://github.com/SimonLammer/anki-persistence/blob/584396fea9dea0921011671a47a0fdda19265e62/script.js
+    if (void 0 === window.Persistence) { var e = "github.com/SimonLammer/anki-persistence/", t = "_default"; if (window.Persistence_sessionStorage = function () { var i = !1; try { "object" == typeof window.sessionStorage && (i = !0, this.clear = function () { for (var t = 0; t < sessionStorage.length; t++) { var i = sessionStorage.key(t); 0 == i.indexOf(e) && (sessionStorage.removeItem(i), t--) } }, this.setItem = function (i, n) { void 0 == n && (n = i, i = t), sessionStorage.setItem(e + i, JSON.stringify(n)) }, this.getItem = function (i) { return void 0 == i && (i = t), JSON.parse(sessionStorage.getItem(e + i)) }, this.removeItem = function (i) { void 0 == i && (i = t), sessionStorage.removeItem(e + i) }, this.getAllKeys = function () { for (var t = [], i = Object.keys(sessionStorage), n = 0; n < i.length; n++) { var s = i[n]; 0 == s.indexOf(e) && t.push(s.substring(e.length, s.length)) } return t.sort() }) } catch (n) { } this.isAvailable = function () { return i } }, window.Persistence_windowKey = function (i) { var n = window[i], s = !1; "object" == typeof n && (s = !0, this.clear = function () { n[e] = {} }, this.setItem = function (i, s) { void 0 == s && (s = i, i = t), n[e][i] = s }, this.getItem = function (i) { return void 0 == i && (i = t), void 0 == n[e][i] ? null : n[e][i] }, this.removeItem = function (i) { void 0 == i && (i = t), delete n[e][i] }, this.getAllKeys = function () { return Object.keys(n[e]) }, void 0 == n[e] && this.clear()), this.isAvailable = function () { return s } }, window.Persistence = new Persistence_sessionStorage, Persistence.isAvailable() || (window.Persistence = new Persistence_windowKey("py")), !Persistence.isAvailable()) { var i = window.location.toString().indexOf("title"), n = window.location.toString().indexOf("main", i); i > 0 && n > 0 && n - i < 10 && (window.Persistence = new Persistence_windowKey("qt")) } }
+
+    if (Persistence.isAvailable()) {
+        currentCustomData.rl = decompressReviewList(currentCustomData.rl);
+        console.log("Decompressed review list", currentCustomData.rl.length);
+        Persistence.setItem(
+            "customData",
+            currentCustomData
+        );
+        console.log("Stored custom data", JSON.stringify(currentCustomData, null, 4));
+        Persistence.setItem(
+            "schedulerStatusHTML",
+            document.getElementById("scheduler_status")?.outerHTML
+        );
+    }
 }

@@ -124,7 +124,7 @@ def postpone(did=None, card_ids=None, parent=None):
         FROM cards
         WHERE queue = {QUEUE_TYPE_REV}
         {f"AND due <= {mw.col.sched.today}" if card_ids is None else ""}
-        AND json_extract(json_extract(data, '$.cd'), '$.v') != 'postpone'
+        AND json_extract(json_extract(data, '$.cd'), '$.v') != 'p'
         {"AND id IN %s" % cid_list if card_ids is not None else ""}
         {"AND did IN %s" % did_list if did is not None else ""}
     """
@@ -229,7 +229,7 @@ def postpone(did=None, card_ids=None, parent=None):
             msg += f" Fixed increment, New IVL: {new_ivl}, IVL incr: {ivl_incr}"
         print(msg)
         card = update_card_due_ivl(card, new_ivl)
-        write_custom_data(card, "v", "postpone")
+        write_custom_data(card, "v", "p")
         mw.col.update_card(card)
         mw.col.merge_undo_entries(undo_entry)
         cnt += 1

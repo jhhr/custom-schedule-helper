@@ -1,5 +1,6 @@
 # inspired by https://eshapard.github.io/
-
+import json
+import base64
 import math
 import time
 
@@ -28,7 +29,7 @@ LOG = False
 from .ease_calculator import calculate_ease, get_success_rate, moving_average
 
 
-def get_all_reps(card=mw.reviewer.card):
+def get_all_reps(card=mw.reviewer.card) -> list[int]:
     return mw.col.db.list(f"""
         select ease
         from revlog
@@ -37,7 +38,7 @@ def get_all_reps(card=mw.reviewer.card):
         """)
 
 
-def get_all_reps_with_ids(card=mw.reviewer.card):
+def get_all_reps_with_ids(card=mw.reviewer.card) -> list[tuple[int, int]]:
     return mw.col.db.all(f"""
         select id, ease
         from revlog
@@ -46,7 +47,7 @@ def get_all_reps_with_ids(card=mw.reviewer.card):
         """)
 
 
-def get_reviews_only(card=mw.reviewer.card):
+def get_reviews_only(card=mw.reviewer.card) -> list[int]:
     return mw.col.db.list((f"""
         select ease
         from revlog
@@ -55,7 +56,7 @@ def get_reviews_only(card=mw.reviewer.card):
         """))
 
 
-def get_ease_factors(card=mw.reviewer.card):
+def get_ease_factors(card=mw.reviewer.card) -> list[int]:
     return mw.col.db.list(f"""
         select factor
         from revlog
@@ -65,7 +66,7 @@ def get_ease_factors(card=mw.reviewer.card):
 """)
 
 
-def get_starting_ease(card=mw.reviewer.card):
+def get_starting_ease(card=mw.reviewer.card) -> int:
     deck_id = card.did
     if card.odid:
         deck_id = card.odid
@@ -82,7 +83,8 @@ def suggested_factor(config,
                      new_answer=None,
                      prev_card_factor=None,
                      leashed=True,
-                     is_deck_adjustment=False):
+                     is_deck_adjustment=False,
+                     set_custom_data=True) -> int:
     """Loads card history from anki and returns suggested factor"""
 
     deck_starting_ease = get_starting_ease(card)
@@ -98,7 +100,7 @@ def suggested_factor(config,
         for i in range(len(all_reps)):
             rep_id = all_reps[i][0]
             card_settings['review_list'] = [_[1] for _ in all_reps[0:i]]
-            new_factor = calculate_ease(config,
+            new_factor, _ = calculate_ease(config,
                                         deck_starting_ease,
                                         card_settings,
                                         leashed)
@@ -123,7 +125,55 @@ def suggested_factor(config,
                           deck_starting_ease,
                           card_settings,
                           leashed)
+    if set_custom_data:
+        write_custom_data(card, key_values=[
+            {"key": "e", "value": "a"},
+            {"key": "rl", "value": compress_review_list(card_settings['review_list'])},
+        ])
+    return new_factor
 
+
+def calculate_max_review_list_length(fixed_size):
+    max_size = 100 - fixed_size
+    # Each base64 character encodes 6 bits, so we need to account for base64 encoding overhead
+    max_bits = max_size * 6 // 8 * 8
+    max_reviews = max_bits // 2
+    return max_reviews
+
+MAX_REVIEWS = calculate_max_review_list_length(
+    len(json.dumps({"e": "0", "v": "0", "s": 1234, "sr": 0.956}, separators=(',', ':')))
+)
+
+def compress_review_list(review_list):
+    # Ensure all integers are between 1 and 4
+    if not all(1 <= x <= 4 for x in review_list):
+        raise ValueError("All integers must be between 1 and 4")
+    
+    # Truncate the list if it is too long
+    if len(review_list) > MAX_REVIEWS:
+        review_list = review_list[-MAX_REVIEWS:]
+
+    # Pack 2-bit integers into bytes
+    packed_bytes = bytearray()
+    current_byte = 0
+    bits_filled = 0
+
+    for num in review_list:
+        current_byte = (current_byte << 2) | (num - 1)
+        bits_filled += 2
+        if bits_filled == 8:
+            packed_bytes.append(current_byte)
+            current_byte = 0
+            bits_filled = 0
+
+    # If there are remaining bits, pad the last byte
+    if bits_filled > 0:
+        current_byte <<= (8 - bits_filled)
+        packed_bytes.append(current_byte)
+
+    # Encode the bytes to a base64 string
+    compressed_str = base64.b64encode(packed_bytes).decode('utf-8')
+    return compressed_str
 
 def get_stats(config, card=mw.reviewer.card, new_answer=None, prev_card_factor=None):
     rep_list = get_all_reps(card)
@@ -183,8 +233,12 @@ def get_stats(config, card=mw.reviewer.card, new_answer=None, prev_card_factor=N
     if card.queue != 2 and config.reviews_only:
         msg += f"New factor: NONREVIEW, NO CHANGE<br>"
     else:
-        new_factor = suggested_factor(config, card, new_answer, prev_card_factor)
-        unleashed_factor = suggested_factor(config, card, new_answer, prev_card_factor, leashed=False, )
+        new_factor = suggested_factor(
+            config, card, new_answer, prev_card_factor, set_custom_data=False
+            )
+        unleashed_factor = suggested_factor(
+            config, card, new_answer, prev_card_factor, leashed=False, set_custom_data=False
+            )
         if new_factor == unleashed_factor:
             msg += f"New factor: {new_factor}<br>"
         else:
@@ -256,7 +310,7 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
 
     if filter_flag:
         filter_query = f"""AND id IN {ids2str(filtered_cids)}
-            AND json_extract(json_extract(data, '$.cd'), '$.e') = 'review'"""
+            AND json_extract(json_extract(data, '$.cd'), '$.e') = 0"""
 
     card_ids = mw.col.db.list(
         f"""
@@ -279,7 +333,6 @@ def adjust_ease_factors_background(did, recent=False, filter_flag=False, filtere
         card.factor = suggested_factor(config,
                                        card=card,
                                        is_deck_adjustment=True)
-        write_custom_data(card, "e", "adjusted")
         if (LOG):
             print("new factor", card.factor)
         mw.col.update_card(card)

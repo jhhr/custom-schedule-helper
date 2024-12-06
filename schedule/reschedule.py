@@ -290,7 +290,7 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
         # or dispersed by another Anki instance running this addon
         # But when running reschedule from the deck menu or main menu, we will reschedule again
         if filter_flag:
-            not_already_rescheduled_query = f"AND json_extract(json_extract(data, '$.cd'), '$.v') NOT IN ('reschedule', 'disperse')"
+            not_already_rescheduled_query = f"AND json_extract(json_extract(data, '$.cd'), '$.v') NOT IN ('r', 'd')"
 
         cards = mw.col.db.all(
             f"""
@@ -347,7 +347,7 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
 def reschedule_card(cid, scheduler: Scheduler):
     card = mw.col.get_card(cid)
 
-    write_custom_data(card, "v", "reschedule")
+    write_custom_data(card, "v", "r")
 
     if card.type == CARD_TYPE_REV:
         scheduler.set_card(card)

@@ -3,7 +3,7 @@ import math
 import re
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import List, Union
+from typing import List, Union, Optional, TypedDict
 
 from anki.cards import Card
 from anki.stats import (
@@ -22,8 +22,9 @@ CUR_SCHEDULER_VERSION_STR = ".".join(map(str, CUR_SCHEDULER_VERSION))
 GLOBAL_DECK_CONFIG_NAME = "global config for Custom Scheduler"
 DECK_NAME_PARAM = "deckName"
 DAYS_UPPER_PARAM = "daysUpper"
+MIN_AGAIN_MULT_PARAM = "minAgainMult"
 
-ALL_PARAMS = [DAYS_UPPER_PARAM]
+ALL_PARAMS = [DAYS_UPPER_PARAM, MIN_AGAIN_MULT_PARAM]
 
 
 def get_version(custom_scheduler):
@@ -262,28 +263,68 @@ def due_to_date(due: int) -> str:
 def power_forgetting_curve(elapsed_days, stability):
     return (1 + elapsed_days / (9 * stability)) ** -1
 
-def add_dict_key_value( dict: dict,key: str, value: Union[str, None]):
-    if value is not None:
-        dict[key] = value
-    elif key in dict:
+def add_dict_key_value(
+    dict: dict,
+    key: str,
+    value: Optional[str] = None,
+    new_key: Optional[str] = None,
+    ):
+    if new_key is not None and value is None:
+        # rename key
+        dict[new_key] = dict.pop(key, None)
+    elif new_key is not None and value is not None:
+        # rename key and change value
         dict.pop(key, None)
+        dict[new_key] = value
+    elif value is not None:
+        # set value for key
+        dict[key] = value
+    else:
+        # remove key
+        dict.pop(key, None)
+        
+class KeyValueDict(TypedDict):
+    key: str
+    value: Optional[Union[str, int, float, bool]]
+    new_key: Optional[str]
 
 def write_custom_data(
     card: Card,
     key: str = None,
-    value: str = None,
-    key_values: list[tuple[str, str]] = None,
+    value: Optional[Union[str, int, float, bool]] = None,
+    new_key: Optional[str] = None,
+    key_values: Optional[list[KeyValueDict]] = None,
 ):
+    """
+    Write custom data to the card.
+    :param card: The card to write the custom data to.
+    :param key: The key to write the value to.
+    :param value: The value to write to the key. If None, the key will be removed.
+    :param new_key: The new key to rename the key to.
+                If value is None, the key will be renamed while keeping the old value.
+                If value is not None, the key will be renamed and the value will changed.
+    :param key_values: A list of (key, value, new key) tuples. Used for performance as calling
+                this function multiple times would perform json.loads and json.dumps multiple times.
+    
+    """
     if card.custom_data != "":
         custom_data = json.loads(card.custom_data)
     else:
         custom_data = {}
     if key_values is not None:
-        for k, v in key_values:
-            add_dict_key_value(custom_data,k, v)
+        for kv in key_values:
+            add_dict_key_value(
+                custom_data,
+                kv.get("key"),
+                kv.get("value"),
+                kv.get("new_key"),
+            )
     else:
-        add_dict_key_value(custom_data, key, value)
-    card.custom_data = json.dumps(custom_data)
+        add_dict_key_value(custom_data, key, value, new_key)
+    compressed_data = json.dumps(custom_data, separators=(',', ':'))
+    if len(compressed_data) > 100:
+        raise ValueError("Custom data exceeds 100 bytes after compression.")
+    card.custom_data = compressed_data
 
 
 def rotate_number_by_k(N, K):

@@ -92,7 +92,7 @@ def advance(did):
         last_review = get_last_review_date(card)
         new_ivl = mw.col.sched.today - last_review
         card = update_card_due_ivl(card, new_ivl)
-        write_custom_data(card, "v", "advance")
+        write_custom_data(card, "v", "a")
         mw.col.update_card(card)
         mw.col.merge_undo_entries(undo_entry)
         cnt += 1
