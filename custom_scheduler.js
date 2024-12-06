@@ -1,4 +1,4 @@
-// print the existing states
+// Debugging:
 const log = false;
 if (log) console.log(JSON.stringify(states, null, 4));
 if (log) console.log(JSON.stringify(customData, null, 4));
@@ -7,25 +7,35 @@ if (log) console.log(JSON.stringify(customData, null, 4));
 
 
 const deckParams = [
-    {
-        // Default parameters of Custom Scheduler for global
-        "deckName": "global config for Custom Scheduler",
-        // Base interval that is multiplied by ease factor to get the max interval
-        // at which the interval growth is at the minimum
-        // For example, a card at 250% ease, that interval is 500 days
-        "daysUpper": 200,
-    },
-    {
-        // Example 1: User's custom parameters for this deck and its sub-decks.
-        "deckName": "MainDeck1",
-        "daysUpper": 200,
-    },
-    // Example 2: User's custom parameters for this deck and its sub-decks.
-    // Don't omit any keys.
-    {
-        "deckName": "MainDeck2::SubDeck::SubSubDeck",
-        "daysUpper": 100,
-    }
+  {
+    // Default parameters of Custom Scheduler for global
+    // Ensure that all keys are defined in this one
+    deckName: "global config for Custom Scheduler",
+    // Base interval that is multiplied by ease factor to get the max interval
+    // at which the interval growth is at the minimum
+    // For example, a card at 250% ease, that interval is 500 days when daysUpper is 200
+    daysUpper: 200,
+    // Minimum multiplier applied when answering again
+    minAgainMult: 0
+  },
+  {
+    // Example 1: Custom params used for one deck and all its sub-decks.
+    // Not all keys need to be set. If a key is not set, the global config will be used.
+    deckName: "MainDeck1",
+    daysUpper: 250
+  },
+  {
+    // Example 2a: Custom params for a parent deck and its subdecks
+    deckName: "MainDeck2",
+    daysUpper: 150
+  },
+  {
+    // Example 2b: Custom params for a sub-deck of the parent deck
+    // These will override the parent deck's parameters
+    deckName: "MainDeck2::SubDeck::SubSubDeck",
+    daysUpper: 100,
+    minAgainMult: 0.25
+  }
 ];
 
 // To turn off Custom Scheduler in specific decks, fill them into the skip_decks list below.
@@ -50,27 +60,53 @@ if (displaySchedulerState) {
     document.getElementById("qa").style.cssText += "min-height:50vh;";
 }
 
-let currentDeckParams = {};
-// get the name of the card's deck
+const globalDeckParams = deckParams.find(deck => deck.deckName === "global config for Custom Scheduler");
+if (!globalDeckParams) {
+    if (displaySchedulerState) {
+        schedulerStatus.innerHTML += '<br><span style="color:red;">ERROR: Global config not found</span>';
+    }
+}
+let currentDeckParams = globalDeckParams;
+
 let deckName = getDeckname();
-if (deckName) {
-    // Arrange the deckParams of sub-decks in front of their parent decks.
+if (!deckName) {
+    if (displaySchedulerState) {
+        schedulerStatus.innerHTML += '<br><span style="color:red;">ERROR: <div id="deck" deckName="..."> not found. Global config will be used.</span>';
+    }
+} else {
+    if (skipDecks.some(skipDeck => deckName.startsWith(skipDeck))) {
+      if (displaySchedulerState) {
+        schedulerStatus.innerHTML +=
+          '<br>Custom scheduler disabled for this deck';
+      }
+      return;
+    }
+    // Arrange the deckParams of parent decks in front of their sub decks.
+    // This is so that we can define parameters for a parent deck and have them apply to all
+    // sub-decks while still being able to override them for specific sub-decks without
+    // having to define the same parameters for each sub-deck.
     deckParams.sort(function (a, b) {
-        return -a.deckName.localeCompare(b.deckName);
+        return a.deckName.localeCompare(b.deckName);
     });
     for (let i = 0; i < deckParams.length; i++) {
         if (deckName.startsWith(deckParams[i]["deckName"])) {
-            currentDeckParams = deckParams[i];
-            break;
+            foundParams = true;
+            currentDeckParams = {
+                ...currentDeckParams,
+                ...deckParams[i],
+            }
+            // continue looping and overwriting the parameters with the next matching sub-deck's
+            // parameters, if there are any
         }
     }
-} else {
-    if (displaySchedulerState) {
-        schedulerStatus.innerHTML += "<br>Deck name not found";
-    }
 }
-if (Object.keys(currentDeckParams).length === 0) {
-    currentDeckParams = deckParams.find(deck => deck.deckName === "global config for Custom Scheduler");
+if (displaySchedulerState) {
+    // The last matched deck parameters name will the deckName, parameters will be a combination
+    // of global parameters and all parent deck parameters
+    schedulerStatus.innerHTML += `<br><strong>Deck parameters:</strong>
+<ul style="margin-left: 30%;">
+${Object.entries(currentDeckParams).map(([key, value]) => `<li>${key}: ${value}</li>`).join('')}
+</ul>`;
 }
 
 // Write customData to DOM so we can read it in the template with javascript, if we want

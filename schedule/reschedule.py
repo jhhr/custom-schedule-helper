@@ -1,3 +1,4 @@
+import json
 import math
 import random
 import time
@@ -26,11 +27,12 @@ from ..utils import (
     write_custom_data,
     check_custom_scheduler,
     CustomSchedulerNotFoundError,
+    DeckParamError,
     get_deck_parameters,
-    DeckParamsMissingError,
+    get_current_deck_parameter,
     get_skip_decks,
-    GLOBAL_DECK_CONFIG_NAME,
     SCHEDULER_NAME,
+    DAYS_UPPER_PARAM,
 )
 
 LOG = False
@@ -222,7 +224,7 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
         return (RESCHEDULE_STOP_MSG, [err.message])
     try:
         deck_parameters = get_deck_parameters(custom_scheduler)
-    except DeckParamsMissingError as err:
+    except DeckParamError as err:
         return (RESCHEDULE_STOP_MSG, [err.message])
 
     skip_decks = get_skip_decks(custom_scheduler)
@@ -234,7 +236,11 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
 
     cnt = 0
     err_msgs = []
-    decks = sorted(mw.col.decks.all(), key=lambda item: item['name'], reverse=True)
+    skip_dids = { mw.col.decks.by_name(skip_deck_name)['id']: True for skip_deck_name in skip_decks}
+    
+    decks = sorted(
+        filter(lambda d: not skip_dids.get(d['id'], False), mw.col.decks.all()),
+        key=lambda d: d['name'], reverse=True)
 
     scheduler = Scheduler()
 
@@ -244,29 +250,19 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
 
     cancelled = False
     DM = DeckManager(mw.col)
+    
+    
+    # Is this a single deck reschedule from deck menu?
+    single_deck_name = None
+    if did is not None:
+        single_deck_name = mw.col.decks.get(did)['name']
+
 
     for deck in decks:
-        # Is this a single deck reschedule from deck menu?
-        if did is not None:
-            deck_name = mw.col.decks.get(did)['name']
-            # If so, skip all other decks
-            if not deck['name'].startswith(deck_name): continue
+        # IF we're targeting a single deck, skip all other decks except that one and its subdecks
+        if single_deck_name is not None and not deck['name'].startswith(single_deck_name): continue
 
-        dids = DM.deck_and_child_ids(deck['id'])
-        # get dids for skip decks
-        skip_dids = [mw.col.decks.by_name(skip_deck_name)['id'] for skip_deck_name in skip_decks]
-        # filter out skip decks
-        dids = [did for did in dids if did not in skip_dids]
-        if len(dids) == 0:
-            continue
-        dids_str = ids2str(dids)
-        did_query = f"AND did IN {dids_str}"
-
-        try:
-            cur_deck_param = get_current_deck_parameter(deck['name'], deck_parameters)
-        except GlobalConfigNotFoundError as err:
-            err_msgs.append(err.message)
-            break
+        cur_deck_param = get_current_deck_parameter(deck['name'], deck_parameters)
 
         if cur_deck_param is None:
             err_msgs.append(
@@ -307,8 +303,8 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
             FROM cards
             WHERE data != ''
             AND queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
+            AND did = {deck['id']}
             {not_already_rescheduled_query if not_already_rescheduled_query is not None else ""}
-            {did_query if did_query is not None else ""}
             {recent_query if recent_query is not None else ""}
             {filter_query if filter_query is not None else ""}
         """
@@ -346,21 +342,6 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
     return (f"{cnt} cards rescheduled", err_msgs)
 
 
-class GlobalConfigNotFoundError(BaseException):
-    def __init__(self):
-        self.message = f"{SCHEDULER_NAME} ERROR: '{GLOBAL_DECK_CONFIG_NAME}' is not found in the deckParams"
-
-
-def get_current_deck_parameter(deckname, deck_parameters):
-    try:
-        deck_parameter = deck_parameters[GLOBAL_DECK_CONFIG_NAME]
-    except KeyError:
-        raise GlobalConfigNotFoundError()
-    for name, params in deck_parameters.items():
-        if deckname.startswith(name):
-            deck_parameter = params
-            break
-    return deck_parameter
 
 
 def reschedule_card(cid, scheduler: Scheduler):

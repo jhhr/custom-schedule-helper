@@ -20,9 +20,10 @@ SCHEDULER_NAME = "Custom Scheduler"
 CUR_SCHEDULER_VERSION = (1, 0, 0)
 CUR_SCHEDULER_VERSION_STR = ".".join(map(str, CUR_SCHEDULER_VERSION))
 GLOBAL_DECK_CONFIG_NAME = "global config for Custom Scheduler"
-GLOBAL_CONFIG_DECK_NAME = "global config for Custom Scheduler"
 DECK_NAME_PARAM = "deckName"
 DAYS_UPPER_PARAM = "daysUpper"
+
+ALL_PARAMS = [DAYS_UPPER_PARAM]
 
 
 def get_version(custom_scheduler):
@@ -55,50 +56,92 @@ def check_custom_scheduler(all_config):
     return custom_scheduler
 
 
-def _get_regex_patterns():
-    decks = rf'"{DECK_NAME_PARAM}".*"(.*)"'
-    days_uppers = rf'"{DAYS_UPPER_PARAM}"[:\s]+(\d+)'
-    return decks, days_uppers
-
-
 def _remove_comment_line(custom_scheduler):
     not_comment_line = '\n'.join([re.sub('^ *//..*$', '', _) for _ in custom_scheduler.split('\n')])
     return not_comment_line
 
-
-class DeckParamsMissingError(BaseException):
+# Add base exception for all deck param errors
+class DeckParamError(BaseException):
     def __init__(self):
-        self.message = f"""{SCHEDULER_NAME} ERROR: Not all of the deckParams {DECK_NAME_PARAM} or {DAYS_UPPER_PARAM} are defined.
+        super().__init__(self.message)
+        
+class MalFormedDeckParamsError(DeckParamError):
+    def __init__(self):
+        self.message = f"""{SCHEDULER_NAME} ERROR: The deckParams are not properly formatted.
         Please check your deckParams in custom scheduler.
+        """
+
+class GlobalDeckParamsMissingError(DeckParamError):
+    def __init__(self):
+        self.message = f"""{SCHEDULER_NAME} ERROR: The global deckParams are not defined.
+        Please check your deckParams in custom scheduler contain params for deckName="{GLOBAL_DECK_CONFIG_NAME}".
+        """
+
+class GlobalDeckSomeParamsMissingError(DeckParamError):
+    def __init__(self):
+        self.message = f"""{SCHEDULER_NAME} ERROR: The global deckParams or {DAYS_UPPER_PARAM} are not defined.
+        Please check your deckParams in custom scheduler.
+        """
+        
+class DeckNameParamMissingError(DeckParamError):
+    def __init__(self):
+        self.message = f"""{SCHEDULER_NAME} ERROR: The deckName parameter is missing.
+        Please check that each deckParam in custom scheduler contains a deckName="..." parameter.
         """
 
 
 def get_deck_parameters(custom_scheduler):
     custom_scheduler = _remove_comment_line(custom_scheduler)
 
-    decks_pat, days_upper_pat = _get_regex_patterns()
-    decks = re.findall(decks_pat, custom_scheduler)
-    days_uppers = re.findall(days_upper_pat, custom_scheduler)
-    if not all([len(x) == len(decks) for x in [
-        decks, days_uppers
-    ]]):
-        raise DeckParamsMissingError()
-    deck_parameters = {
-        deck: {
-            "days_upper": int(days_upper),
-        } for deck, days_upper in zip(
-            decks, days_uppers
-        )
-    }
+    params_array_pat = r'const deckParams = (\[[\s\S]*?\]);'
+    hanging_comma_pat = r',(\s*?(?:\}|\]))'
+    deck_params_str = re.search(params_array_pat, custom_scheduler).group(1)
+    deck_params_str = re.sub(hanging_comma_pat, r'\1', deck_params_str)
+    try:
+        deck_parameters = json.loads(deck_params_str)
+    except json.JSONDecodeError:
+        raise MalFormedDeckParamsError()
 
+    global_config = None
+    for deck_param in deck_parameters:
+        if deck_param[DECK_NAME_PARAM] == GLOBAL_DECK_CONFIG_NAME:
+            global_config = deck_param
+            if not all(param in global_config for param in ALL_PARAMS):
+                raise GlobalDeckSomeParamsMissingError()
+        else:
+            if DECK_NAME_PARAM not in deck_param:
+                raise DeckNameParamMissingError()
+    if global_config is None:
+        raise GlobalDeckParamsMissingError()
+    
+    # Fill in missing parameters with global config
+    for deck_param in deck_parameters:
+        for param in ALL_PARAMS:
+            if param not in deck_param:
+                deck_param[param] = global_config[param]
+    
+    # Sort the deck parameters by deck name, so that parent decks are sorted before sub-decks
+    deck_parameters = sorted(deck_parameters, key=lambda x: x[DECK_NAME_PARAM])
     deck_parameters = OrderedDict(
-        {name: parameters for name, parameters in sorted(
-            deck_parameters.items(),
-            key=lambda item: item[0],
-            reverse=True
-        )}
+        {deck_param[DECK_NAME_PARAM]: deck_param for deck_param in deck_parameters}
     )
+            
     return deck_parameters
+
+
+def get_current_deck_parameter(deckname, deck_parameters):
+    """
+    Get the deck parameters for the current deck.
+    Will default to global deck parameters and then override with deck specific parameters.
+    Additionally parent deck params will be applied first and then overridden by sub-deck params.
+    """
+    deck_params = deck_parameters[GLOBAL_DECK_CONFIG_NAME].copy()
+    for name, params in deck_parameters.items():
+        if deckname.startswith(name):
+            deck_params.update(params)
+            # continue looping to override with more specific deck params
+    print(deckname, json.dumps(deck_params, indent=2))
+    return deck_params
 
 
 def get_skip_decks(custom_scheduler):
