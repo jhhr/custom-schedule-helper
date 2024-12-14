@@ -3,6 +3,7 @@ from typing import List
 from anki.utils import ids2str
 from aqt import mw
 from aqt.gui_hooks import sync_will_start, sync_did_finish
+from aqt.utils import tooltip
 
 from .configuration import Config
 from .ease.auto_ease_factor import adjust_ease
@@ -79,8 +80,13 @@ def auto_disperse(remote_reviewed_cids: List[int], texts: List[str]):
     )
 
     if fut:
-        # wait for disperse to finish
-        return fut.result()
+        # Disperse siblings is the last operation, so we can show the result now
+        # Instead of returning the future, we show a tooltip with the result so
+        # we can set our own period
+        tooltip(
+            fut.result(),
+            period=10000,
+        )
 
 
 def auto_adjust_ease(remote_reviewed_cids: List[int], texts: List[str]):
