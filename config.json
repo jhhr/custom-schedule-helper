@@ -14,5 +14,7 @@
     "stats_enabled": true,
     "stats_duration": 5000,
     "target_ratio": 0.85,
-    "reviews_only": false
+    "reviews_only": false,
+    "auto_adjust_ease_after_review": true,
+    "auto_adjust_ease_on_review": false
 }

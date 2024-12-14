@@ -27,10 +27,10 @@ def get_success_rate(review_list, weight, init) -> float:
     return moving_average(success_list, weight, init)
 
 def calculate_ease(
-    config: dict,
-    starting_ease_factor: int,
-    card_settings: dict,
-    leashed: bool = True
+        config: dict,
+        starting_ease_factor: int,
+        card_settings: dict,
+        leashed: bool = True
     ) -> tuple[int, float]:
     """Return next ease factor based on config and card performance."""
     leash = config.leash
@@ -45,7 +45,7 @@ def calculate_ease(
     current_ease_factor = None
     if len(valid_factor_list) > 0:
         current_ease_factor = valid_factor_list[-1]
-    ## If value wasn't set or was set to zero for some reason, use starting ease
+    # If value wasn't set or was set to zero for some reason, use starting ease
     if not current_ease_factor:
         current_ease_factor = starting_ease_factor
 
@@ -91,20 +91,20 @@ def calculate_ease(
                 * (current_ease_factor / starting_ease_factor))
 
         ease_cap = min(
-            max_ease, 
+            max_ease,
             (current_ease_factor + leash * up_leash_multiplier)
             )
 
         if suggested_factor > ease_cap:
             suggested_factor = ease_cap
-            
+
         ease_floor = max(
                 min_ease,
                 (current_ease_factor - leash * down_leash_multiplier)
             )
         if suggested_factor < ease_floor:
             suggested_factor = ease_floor
-        
+
     # return int(round(suggested_factor + factor_offset)), success_rate
     return min(max(int(round(suggested_factor)), min_ease), max_ease), success_rate
 

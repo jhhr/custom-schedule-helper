@@ -19,6 +19,8 @@ STATS_ENABLED = "stats_enabled"
 STATS_DURATION = "stats_duration"
 TARGET_RATIO = "target_ratio"
 REVIEWS_ONLY = "reviews_only"
+AUTO_ADJUST_EASE_ON_REVIEW = "auto_adjust_ease_on_review"
+AUTO_ADJUST_EASE_AFTER_REVIEW = "auto_adjust_ease_after_review"
 
 
 def load_config():
@@ -198,4 +200,20 @@ class Config:
         self.data[REVIEWS_ONLY] = value
         self.save()
 
+    @property
+    def auto_adjust_ease_on_review(self):
+        return self.data[AUTO_ADJUST_EASE_ON_REVIEW]
+
+    @auto_adjust_ease_on_review.setter
+    def auto_adjust_ease_on_review(self, value):
+        self.data[AUTO_ADJUST_EASE_ON_REVIEW] = value
+        self.save()
+        
+    @property
+    def auto_adjust_ease_after_review(self):
+        return self.data[AUTO_ADJUST_EASE_AFTER_REVIEW]
     
+    @auto_adjust_ease_after_review.setter
+    def auto_adjust_ease_after_review(self, value):
+        self.data[AUTO_ADJUST_EASE_AFTER_REVIEW] = value
+        self.save()

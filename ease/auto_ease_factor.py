@@ -99,9 +99,9 @@ def suggested_factor(config,
             rep_id = all_reps[i][0]
             card_settings['review_list'] = [_[1] for _ in all_reps[0:i]]
             new_factor, _ = calculate_ease(config,
-                                        deck_starting_ease,
-                                        card_settings,
-                                        leashed)
+                                           deck_starting_ease,
+                                           card_settings,
+                                           leashed)
             mw.col.db.execute("update revlog set factor = ? where id = ?", new_factor, rep_id)
             card_settings['factor_list'].append(new_factor)
     if config.reviews_only:
@@ -112,23 +112,22 @@ def suggested_factor(config,
         append_answer = new_answer
         card_settings['review_list'].append(append_answer)
     factor_list = get_ease_factors(card)
-    if factor_list is not None and len(factor_list) > 0:
+    if factor_list is not None and len(factor_list) > 0 and prev_card_factor is not None:
         factor_list[-1] = prev_card_factor
     card_settings['factor_list'] = factor_list
     # Ignore latest ease if you are applying algorithm from deck settings
     if new_answer is None and len(card_settings['factor_list']) > 1:
         card_settings['factor_list'] = card_settings['factor_list'][:-1]
     new_factor, success_rate = calculate_ease(config,
-                          deck_starting_ease,
-                          card_settings,
-                          leashed)
+                                              deck_starting_ease,
+                                              card_settings,
+                                              leashed)
     if set_custom_data:
         write_custom_data(card, key_values=[
             {"key": "e", "value": "a"},
             {"key": "sr", "value": round(success_rate, 3)},
         ])
     return new_factor
-
 
 
 def get_stats(config, card=mw.reviewer.card, new_answer=None, prev_card_factor=None):
@@ -187,14 +186,14 @@ def get_stats(config, card=mw.reviewer.card, new_answer=None, prev_card_factor=N
         msg += f" (actual: {prev_card_factor})<br>"
 
     if card.queue != 2 and config.reviews_only:
-        msg += f"New factor: NONREVIEW, NO CHANGE<br>"
+        msg += "New factor: NONREVIEW, NO CHANGE<br>"
     else:
         new_factor = suggested_factor(
             config, card, new_answer, prev_card_factor, set_custom_data=False
-            )
+        )
         unleashed_factor = suggested_factor(
             config, card, new_answer, prev_card_factor, leashed=False, set_custom_data=False
-            )
+        )
         if new_factor == unleashed_factor:
             msg += f"New factor: {new_factor}<br>"
         else:
@@ -220,6 +219,8 @@ def adjust_factor_when_review(ease_tuple,
     config = Config()
     config.load()
 
+    if not config.auto_adjust_ease_on_review:
+        return ease_tuple
     assert card is not None
     new_answer = ease_tuple[1]
     prev_card_factor = card.factor
@@ -232,6 +233,23 @@ def adjust_factor_when_review(ease_tuple,
         display_stats(config, new_answer, prev_card_factor)
     return ease_tuple
 
+def adjust_factor_after_review(reviewer: reviewer.Reviewer, card: mw.reviewer.card, ease: int):
+    config = Config()
+    config.load()
+
+    if not config.auto_adjust_ease_after_review:
+        return
+
+    assert card is not None
+    print(f"card.factor: {card.factor}")
+    if card.queue == 2 or not config.reviews_only:
+        # Merge undo entry for the review
+        undo_status = mw.col.undo_status()
+        undo_entry = undo_status.last_step
+        card.factor = suggested_factor(config, card)
+        # Update card with the new custom_data
+        mw.col.update_card(card)
+        mw.col.merge_undo_entries(undo_entry)
 
 def adjust_ease_factors_background(did=None, recent=False, only_marked=False, card_ids=None):
     config = Config()
@@ -266,13 +284,13 @@ def adjust_ease_factors_background(did=None, recent=False, only_marked=False, ca
 
     if card_ids:
         card_ids_query = f"AND id IN {ids2str(card_ids)}"
-        
+
     if only_marked:
         marked_query = "AND json_extract(json_extract(data, '$.cd'), '$.e') = 1"
 
     card_ids = mw.col.db.list(
         f"""
-        SELECT 
+        SELECT
             id
         FROM cards
         WHERE queue IN ({QUEUE_TYPE_LRN}, {QUEUE_TYPE_REV}, {QUEUE_TYPE_DAY_LEARN_RELEARN})
