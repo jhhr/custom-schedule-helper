@@ -286,7 +286,7 @@ def adjust_ease_factors_background(did=None, recent=False, only_marked=False, ca
         card_ids_query = f"AND id IN {ids2str(card_ids)}"
 
     if only_marked:
-        marked_query = "AND json_extract(json_extract(data, '$.cd'), '$.e') = 1"
+        marked_query = "AND json_extract(json_extract(data, '$.cd'), '$.e') = 0"
 
     card_ids = mw.col.db.list(
         f"""
