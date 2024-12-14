@@ -28,7 +28,7 @@ def get_success_rate(review_list, weight, init) -> float:
 
 def calculate_ease(
         config: dict,
-        starting_ease_factor: int,
+        deck_starting_ease: int,
         card_settings: dict,
         leashed: bool = True
     ) -> tuple[int, float]:
@@ -47,7 +47,7 @@ def calculate_ease(
         current_ease_factor = valid_factor_list[-1]
     # If value wasn't set or was set to zero for some reason, use starting ease
     if not current_ease_factor:
-        current_ease_factor = starting_ease_factor
+        current_ease_factor = deck_starting_ease
 
     # if no reviews, just assume we're on target
     if review_list is None or len(review_list) < 1:
@@ -65,7 +65,7 @@ def calculate_ease(
     if len(valid_factor_list) > 0:
         average_ease = moving_average(valid_factor_list, weight)
     else:
-        average_ease = starting_ease_factor
+        average_ease = deck_starting_ease
     suggested_factor = average_ease * delta_ratio
 
     # Prevent divide by zero
@@ -76,19 +76,19 @@ def calculate_ease(
     # factor will increase
         up_leash_multiplier =  (((max_ease / current_ease_factor) ** (1/3))
                 # suggested_factor distance from starting ease increases multiplier slightly
-                * ((suggested_factor / starting_ease_factor) ** (1/4))
+                * ((suggested_factor / deck_starting_ease) ** (1/4))
                 # Smaller multiplier the closer we are to max ease
                 * (1 - current_ease_factor / max_ease)
                 # Higher multiplier when below starting ease
-                * (starting_ease_factor / current_ease_factor))
+                * (deck_starting_ease / current_ease_factor))
         #up_leash = min(leash, leash * up_leash_multiplier)
 
     # factor will decrease
         down_leash_multiplier = ((current_ease_factor / min_ease - 1)
                 # suggested_factor distance from starting ease increases multiplier slightly
-                * ((starting_ease_factor / suggested_factor) ** (1/3))
+                * ((deck_starting_ease / suggested_factor) ** (1/3))
                 # Smaller multiplier when below starting ease
-                * (current_ease_factor / starting_ease_factor))
+                * (current_ease_factor / deck_starting_ease))
 
         ease_cap = min(
             max_ease,

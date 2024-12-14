@@ -305,7 +305,6 @@ def write_custom_data(
                 If value is not None, the key will be renamed and the value will changed.
     :param key_values: A list of (key, value, new key) tuples. Used for performance as calling
                 this function multiple times would perform json.loads and json.dumps multiple times.
-    
     """
     if card.custom_data != "":
         custom_data = json.loads(card.custom_data)

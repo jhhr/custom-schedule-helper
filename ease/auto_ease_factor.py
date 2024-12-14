@@ -21,7 +21,7 @@ from aqt.utils import tooltip
 from ..configuration import Config
 from ..utils import write_custom_data
 
-LOG = False
+LOG = True
 
 # add on utilities
 from .ease_calculator import calculate_ease, get_success_rate, moving_average
@@ -102,6 +102,7 @@ def suggested_factor(config,
                                            deck_starting_ease,
                                            card_settings,
                                            leashed)
+            # This breaks undo history, so no undoing is possible when doing deck adjustment
             mw.col.db.execute("update revlog set factor = ? where id = ?", new_factor, rep_id)
             card_settings['factor_list'].append(new_factor)
     if config.reviews_only:
@@ -118,10 +119,12 @@ def suggested_factor(config,
     # Ignore latest ease if you are applying algorithm from deck settings
     if new_answer is None and len(card_settings['factor_list']) > 1:
         card_settings['factor_list'] = card_settings['factor_list'][:-1]
-    new_factor, success_rate = calculate_ease(config,
-                                              deck_starting_ease,
-                                              card_settings,
-                                              leashed)
+    new_factor, success_rate = calculate_ease(
+        config=config,
+        deck_starting_ease=deck_starting_ease,
+        card_settings=card_settings,
+        leashed=leashed
+    )
     if set_custom_data:
         write_custom_data(card, key_values=[
             {"key": "e", "value": "a"},
@@ -225,10 +228,12 @@ def adjust_factor_when_review(ease_tuple,
     new_answer = ease_tuple[1]
     prev_card_factor = card.factor
     if card.queue == 2 or not config.reviews_only:
-        card.factor = suggested_factor(config,
-                                       card,
-                                       new_answer,
-                                       prev_card_factor)
+        card.factor = suggested_factor(
+            config=config,
+            card=card,
+            new_answer=new_answer,
+            prev_card_factor=prev_card_factor,
+        )
     if config.stats_enabled:
         display_stats(config, new_answer, prev_card_factor)
     return ease_tuple
@@ -241,7 +246,6 @@ def adjust_factor_after_review(reviewer: reviewer.Reviewer, card: mw.reviewer.ca
         return
 
     assert card is not None
-    print(f"card.factor: {card.factor}")
     if card.queue == 2 or not config.reviews_only:
         # Merge undo entry for the review
         undo_status = mw.col.undo_status()
@@ -251,24 +255,20 @@ def adjust_factor_after_review(reviewer: reviewer.Reviewer, card: mw.reviewer.ca
         mw.col.update_card(card)
         mw.col.merge_undo_entries(undo_entry)
 
-def adjust_ease_factors_background(did=None, recent=False, only_marked=False, card_ids=None):
+def adjust_ease_factors_background(
+        did=None,
+        recent=False,
+        marked_only=False,
+        card_ids=None,
+    ):
     config = Config()
     config.load()
 
-    """ Somehow this undo entry doesn't get found this happens:
-        mw.col.merge_undo_entries(ease_undo_entry)
-          File "anki.collection", line 1027, in merge_undo_entries
-          File "anki._backend_generated", line 255, in merge_undo_entries
-          File "anki._backend", line 158, in _run_command
-            anki.errors.InvalidInput: target undo op not found
-    """
-    # ease_undo_entry = mw.col.add_custom_undo_entry("Adjust ease")
     mw.taskman.run_on_main(
         lambda: mw.progress.start(label="Adjusting ease", immediate=False)
     )
 
     cnt = 0
-    cancelled = False
     DM = DeckManager(mw.col)
 
     if did is not None:
@@ -285,7 +285,7 @@ def adjust_ease_factors_background(did=None, recent=False, only_marked=False, ca
     if card_ids:
         card_ids_query = f"AND id IN {ids2str(card_ids)}"
 
-    if only_marked:
+    if marked_only:
         marked_query = "AND json_extract(json_extract(data, '$.cd'), '$.e') = 0"
 
     card_ids = mw.col.db.list(
@@ -297,44 +297,56 @@ def adjust_ease_factors_background(did=None, recent=False, only_marked=False, ca
         {did_query if did is not None else ""}
         {recent_query if recent else ""}
         {card_ids_query if card_ids else ""}
-        {marked_query if only_marked else ""}
+        {marked_query if marked_only else ""}
     """
     )
 
     for card_id in card_ids:
-        if cancelled:
-            break
         card = mw.col.get_card(card_id)
         if (LOG):
             print("old factor", card.factor)
-        card.factor = suggested_factor(config,
-                                       card=card,
-                                       is_deck_adjustment=True)
+        card.factor = suggested_factor(
+            config=config,
+            card=card,
+            is_deck_adjustment=True
+        )
         if (LOG):
             print("new factor", card.factor)
+
         mw.col.update_card(card)
-        # mw.col.merge_undo_entries(ease_undo_entry)
+        # This is a deck adjustment, so mergin undo entries is not possible due to the
+        # db.execute() call in suggested_factor
         cnt += 1
         if cnt % 200 == 0:
             mw.taskman.run_on_main(
                 lambda: mw.progress.update(value=cnt, label=f"{cnt} cards adjusted")
             )
-            if mw.progress.want_cancel():
-                cancelled = True
+        if mw.progress.want_cancel():
+            break
 
     return f"Adjusted ease for {cnt} cards"
 
 
-def adjust_ease(did=None, recent=False, marked_only=False, card_ids=None, parent=None):
+def adjust_ease(
+        did=None,
+        recent=False,
+        marked_only=False,
+        card_ids=None,
+        parent=None,
+    ):
     start_time = time.time()
 
     def on_done(future):
         mw.progress.finish()
         tooltip(f"{future.result()} in {time.time() - start_time:.2f} seconds")
-        mw.reset()
 
     fut = mw.taskman.run_in_background(
-        lambda: adjust_ease_factors_background(did, recent, marked_only, card_ids),
+        lambda: adjust_ease_factors_background(
+            did=did,
+            recent=recent,
+            marked_only=marked_only,
+            card_ids=card_ids,
+        ),
         on_done,
     )
 
