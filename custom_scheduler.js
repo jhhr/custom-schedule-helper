@@ -5,7 +5,6 @@ if (log) console.log(JSON.stringify(customData, null, 4));
 
 // Custom Scheduler v1.0.0
 
-
 const deckParams = [
   {
     // Default parameters of Custom Scheduler for global
@@ -113,7 +112,9 @@ if (displaySchedulerState) {
     `;
     document.head.appendChild(schedulerStatusStyle);
   }
-  let schedulerStatusContainer = document.getElementById("scheduler_status_container");
+  let schedulerStatusContainer = document.getElementById(
+    "scheduler_status_container"
+  );
   if (!schedulerStatusContainer) {
     schedulerStatusContainer = document.createElement("div");
     const trigger = document.createElement("button");
@@ -129,7 +130,9 @@ if (displaySchedulerState) {
     // it too is conveniently transported along with the element.
     // event.stopPropagation(); is used to prevent the click event from bubbling up to the body
     // and triggering the hide function immediately after the show function is called.
-    schedulerStatusContainer.setAttribute("onclick",`
+    schedulerStatusContainer.setAttribute(
+      "onclick",
+      `
       event.stopPropagation();
       (function() {
         function hide() {
@@ -164,52 +167,58 @@ if (displaySchedulerState) {
   schedulerStatusContainer.appendChild(schedulerStatus);
 }
 
-const globalDeckParams = deckParams.find(deck => deck.deckName === "global config for Custom Scheduler");
+const globalDeckParams = deckParams.find(
+  (deck) => deck.deckName === "global config for Custom Scheduler"
+);
 if (!globalDeckParams) {
-    if (displaySchedulerState) {
-        schedulerStatus.innerHTML += '<br><span style="color:red;">ERROR: Global config not found</span>';
-    }
+  if (displaySchedulerState) {
+    schedulerStatus.innerHTML +=
+      '<br><span style="color:red;">ERROR: Global config not found</span>';
+  }
 }
 let currentDeckParams = globalDeckParams;
 
 let deckName = getDeckname();
 if (!deckName) {
-    if (displaySchedulerState) {
-        schedulerStatus.innerHTML += '<br><span style="color:red;">ERROR: <div id="deck" deckName="..."> not found. Global config will be used.</span>';
-    }
+  if (displaySchedulerState) {
+    schedulerStatus.innerHTML +=
+      '<br><span style="color:red;">ERROR: <div id="deck" deckName="..."> not found. Global config will be used.</span>';
+  }
 } else {
-    if (skipDecks.some(skipDeck => deckName.startsWith(skipDeck))) {
-      if (displaySchedulerState) {
-        schedulerStatus.innerHTML +=
-          '<br>Custom scheduler disabled for this deck';
-      }
-      return;
+  if (skipDecks.some((skipDeck) => deckName.startsWith(skipDeck))) {
+    if (displaySchedulerState) {
+      schedulerStatus.innerHTML +=
+        "<br>Custom scheduler disabled for this deck";
     }
-    // Arrange the deckParams of parent decks in front of their sub decks.
-    // This is so that we can define parameters for a parent deck and have them apply to all
-    // sub-decks while still being able to override them for specific sub-decks without
-    // having to define the same parameters for each sub-deck.
-    deckParams.sort(function (a, b) {
-        return a.deckName.localeCompare(b.deckName);
-    });
-    for (let i = 0; i < deckParams.length; i++) {
-        if (deckName.startsWith(deckParams[i]["deckName"])) {
-            foundParams = true;
-            currentDeckParams = {
-                ...currentDeckParams,
-                ...deckParams[i],
-            }
-            // continue looping and overwriting the parameters with the next matching sub-deck's
-            // parameters, if there are any
-        }
+    return;
+  }
+  // Arrange the deckParams of parent decks in front of their sub decks.
+  // This is so that we can define parameters for a parent deck and have them apply to all
+  // sub-decks while still being able to override them for specific sub-decks without
+  // having to define the same parameters for each sub-deck.
+  deckParams.sort(function (a, b) {
+    return a.deckName.localeCompare(b.deckName);
+  });
+  for (let i = 0; i < deckParams.length; i++) {
+    if (deckName.startsWith(deckParams[i]["deckName"])) {
+      foundParams = true;
+      currentDeckParams = {
+        ...currentDeckParams,
+        ...deckParams[i]
+      };
+      // continue looping and overwriting the parameters with the next matching sub-deck's
+      // parameters, if there are any
     }
+  }
 }
 if (displaySchedulerState) {
-    // The last matched deck parameters name will the deckName, parameters will be a combination
-    // of global parameters and all parent deck parameters
-    schedulerStatus.innerHTML += `<br><strong>Deck parameters:</strong>
+  // The last matched deck parameters name will the deckName, parameters will be a combination
+  // of global parameters and all parent deck parameters
+  schedulerStatus.innerHTML += `<br><strong>Deck parameters:</strong>
 <ul">
-${Object.entries(currentDeckParams).map(([key, value]) => `<li>${key}: ${value}</li>`).join('')}
+${Object.entries(currentDeckParams)
+  .map(([key, value]) => `<li>${key}: ${value}</li>`)
+  .join("")}
 </ul>`;
 }
 
@@ -233,60 +242,56 @@ customData.good.fc = 0;
 customData.easy.fc = 0;
 
 // Don't adjust intervals for new or new cards still in learning steps
-if (states.current.normal?.new
-    || (states.current.normal?.learning)
-    || states.current.filtered?.rescheduling.originalState.new
-    || states.current.filtered?.rescheduling.originalState.learning) return;
+if (
+  states.current.normal?.new ||
+  states.current.normal?.learning ||
+  states.current.filtered?.rescheduling.originalState.new ||
+  states.current.filtered?.rescheduling.originalState.learning
+)
+  return;
 
 // Do adjust for reviews or cards in relearning steps
-const revObj = states.current.normal?.review
-    || states.current.normal?.relearning?.review
-    || states.current.filtered?.rescheduling?.originalState?.review
-    || states.current.filtered?.rescheduling?.originalState?.relearning.review
+const revObj =
+  states.current.normal?.review ||
+  states.current.normal?.relearning?.review ||
+  states.current.filtered?.rescheduling?.originalState?.review ||
+  states.current.filtered?.rescheduling?.originalState?.relearning.review;
 
 const curFct = revObj?.easeFactor;
 const curRevIvl = revObj?.scheduledDays;
 
-const {
-    daysUpper: daysUpper,
-    minAgainMult = 0,
-} = currentDeckParams;
+const { daysUpper: daysUpper, minAgainMult = 0 } = currentDeckParams;
 const minModFct = Math.sqrt(curFct);
 const adjDaysUpper = daysUpper * curFct;
 
-const againRevObj = states.again.normal?.review
-  || states.again.normal?.relearning?.review
-  || states.again.filtered?.rescheduling?.originalState?.review
-  || states.again.filtered?.rescheduling?.originalState?.relearning.review
-  || {};
+const againRevObj =
+  states.again.normal?.review ||
+  states.again.normal?.relearning?.review ||
+  states.again.filtered?.rescheduling?.originalState?.review ||
+  states.again.filtered?.rescheduling?.originalState?.relearning.review ||
+  {};
 const { scheduledDays: againIvl } = againRevObj;
-const {
-    scheduledDays: hardIvl,
-} = states.hard.normal?.review || {}
-const {
-    scheduledDays: goodIvl,
-} = states.good.normal?.review || {}
-const {
-    scheduledDays: easyIvl,
-} = states.easy.normal?.review || {}
+const { scheduledDays: hardIvl } = states.hard.normal?.review || {};
+const { scheduledDays: goodIvl } = states.good.normal?.review || {};
+const { scheduledDays: easyIvl } = states.easy.normal?.review || {};
 const againIvlMult = Number.isFinite(againIvl) && againIvl / curRevIvl;
 const hardIvlMult = Number.isFinite(hardIvl) && hardIvl / curRevIvl;
-const easyIvlMult = Number.isFinite(easyIvl) && Number.isFinite(goodIvl) && easyIvl / goodIvl;
+const easyIvlMult =
+  Number.isFinite(easyIvl) && Number.isFinite(goodIvl) && easyIvl / goodIvl;
 
-if (log) console.log('adjDaysUpper', adjDaysUpper)
-if (log) console.log('curFct', curFct);
-if (log) console.log('minModFct', minModFct);
-if (log) console.log('curRevIvl', curRevIvl)
-if (log) console.log('againIvlMult', againIvlMult);
-if (log) console.log('hardIvlMult', hardIvlMult);
-if (log) console.log('easyIvlMult', easyIvlMult);
-
+if (log) console.log("adjDaysUpper", adjDaysUpper);
+if (log) console.log("curFct", curFct);
+if (log) console.log("minModFct", minModFct);
+if (log) console.log("curRevIvl", curRevIvl);
+if (log) console.log("againIvlMult", againIvlMult);
+if (log) console.log("hardIvlMult", hardIvlMult);
+if (log) console.log("easyIvlMult", easyIvlMult);
 
 function getDeckname() {
-    return ctx?.deckName
-        || document.getElementById("deck")?.getAttribute("deckName");
+  return (
+    ctx?.deckName || document.getElementById("deck")?.getAttribute("deckName")
+  );
 }
-
 
 function isReview() {
   if (states.current.normal?.review !== undefined) {
@@ -295,7 +300,12 @@ function isReview() {
     }
   }
   if (states.current.filtered?.rescheduling?.originalState !== undefined) {
-    if (Object.hasOwn(states.current.filtered?.rescheduling?.originalState, 'review')) {
+    if (
+      Object.hasOwn(
+        states.current.filtered?.rescheduling?.originalState,
+        "review"
+      )
+    ) {
       return true;
     }
   }
@@ -313,90 +323,216 @@ function applyFuzz(ivl) {
   let max_ivl = Math.round(ivl * 1.05 + 1);
   if (isReview()) {
     if (ivl > curRevIvl) {
-        min_ivl = Math.max(min_ivl, curRevIvl + 1);
+      min_ivl = Math.max(min_ivl, curRevIvl + 1);
     }
   }
   return Math.floor(fuzzFactor * (max_ivl - min_ivl + 1) + min_ivl);
 }
 
 function adjustIvl(answerIvl, mult) {
-    const ratio = Math.min(answerIvl / adjDaysUpper, 1);
-    const minModMult = Math.sqrt(mult);
-    const modMult = Math.min(mult, mult * (1 - ratio) + minModMult * ratio);
-    const modIvl = Math.min(answerIvl, curRevIvl * modMult);
-    if (log) console.log('ratio', ratio);
-    if (log) console.log('minModMult', minModMult);
-    if (log) console.log('modMult', modMult)
-    if (log) console.log('modIvl', modIvl);
+  const ratio = Math.min(answerIvl / adjDaysUpper, 1);
+  const minModMult = Math.sqrt(mult);
+  const modMult = Math.min(mult, mult * (1 - ratio) + minModMult * ratio);
+  const modIvl = Math.min(answerIvl, curRevIvl * modMult);
+  if (log) console.log("ratio", ratio);
+  if (log) console.log("minModMult", minModMult);
+  if (log) console.log("modMult", modMult);
+  if (log) console.log("modIvl", modIvl);
 
-    return Math.ceil(applyFuzz(modIvl));
+  return Math.ceil(applyFuzz(modIvl));
 }
 
 if (curRevIvl) {
-    if (againIvlMult) {
-        let { sr: successRate = 0.99 } = currentCustomData;
-        successRate = parseFloat(successRate);
-        // Use successRate to adjust the again multiplier from default
-        // The lower the sucessRate, the more answering again reduces ivl
-        const modAgainMult = Math.max(againIvlMult - (1 - successRate), minAgainMult);
-        const modAgainIvl = Math.ceil(curRevIvl * modAgainMult);
-        if (log) {
-            console.log('mod again', againIvl, modAgainIvl);
-            console.log("modAgainMult", modAgainMult);
-            console.log('minAgainMult', minAgainMult);
-            console.log('successRate', successRate);
-        }
-        if (againRevObj) {
-          againRevObj.scheduledDays = modAgainIvl;
-        }
+  if (againIvlMult) {
+    let { sr: successRate = 0.99 } = currentCustomData;
+    successRate = parseFloat(successRate);
+    // Use successRate to adjust the again multiplier from default
+    // The lower the sucessRate, the more answering again reduces ivl
+    const modAgainMult = Math.max(
+      againIvlMult - (1 - successRate),
+      minAgainMult
+    );
+    const modAgainIvl = Math.ceil(curRevIvl * modAgainMult);
+    if (log) {
+      console.log("mod again", againIvl, modAgainIvl);
+      console.log("modAgainMult", modAgainMult);
+      console.log("minAgainMult", minAgainMult);
+      console.log("successRate", successRate);
     }
-    
+    if (againRevObj) {
+      againRevObj.scheduledDays = modAgainIvl;
+    }
+  }
 
-    if (hardIvl && hardIvlMult && hardIvlMult >= 1 && goodIvl) {
-        const hardGoodRatio = Math.min(hardIvl / goodIvl, 1);
-        // Try to keep a significant difference between hard and good ivls even when factor may be low
-        // Return a ivl between the unchanged hardIvl and curIvl that's closes to curIvl the closer
-        // hardIvl is to goodIvl
-        const modHardIvl = Math.ceil(hardIvl * (1 - hardGoodRatio) + curRevIvl * hardGoodRatio)
-        if (log) console.log('hardGoodRatio', hardGoodRatio);
-        if (log) console.log('mod hard', hardIvl, modHardIvl);
-        if (states.hard.normal?.review) {
-            states.hard.normal.review.scheduledDays = modHardIvl;
-        }
+  if (hardIvl && hardIvlMult && hardIvlMult >= 1 && goodIvl) {
+    const hardGoodRatio = Math.min(hardIvl / goodIvl, 1);
+    // Try to keep a significant difference between hard and good ivls even when factor may be low
+    // Return a ivl between the unchanged hardIvl and curIvl that's closes to curIvl the closer
+    // hardIvl is to goodIvl
+    const modHardIvl = Math.ceil(
+      hardIvl * (1 - hardGoodRatio) + curRevIvl * hardGoodRatio
+    );
+    if (log) console.log("hardGoodRatio", hardGoodRatio);
+    if (log) console.log("mod hard", hardIvl, modHardIvl);
+    if (states.hard.normal?.review) {
+      states.hard.normal.review.scheduledDays = modHardIvl;
     }
+  }
 
-    let goodModIvl;
-    if (goodIvl) {
-      goodModIvl = adjustIvl(goodIvl, curFct);
-      if (log) console.log("mod good", goodIvl, goodModIvl);
-      if (states.good.normal?.review) {
-        states.good.normal.review.scheduledDays = goodModIvl;
-      }
+  let goodModIvl;
+  if (goodIvl) {
+    goodModIvl = adjustIvl(goodIvl, curFct);
+    if (log) console.log("mod good", goodIvl, goodModIvl);
+    if (states.good.normal?.review) {
+      states.good.normal.review.scheduledDays = goodModIvl;
     }
+  }
 
-    if (goodModIvl && easyIvlMult) {
-        const modEasyIvl = Math.ceil(goodModIvl * easyIvlMult);
-        if (log) console.log('mod easy', easyIvl, modEasyIvl);
-        if (states.easy.normal?.review) {
-            states.easy.normal.review.scheduledDays = modEasyIvl;
-        }
+  if (goodModIvl && easyIvlMult) {
+    const modEasyIvl = Math.ceil(goodModIvl * easyIvlMult);
+    if (log) console.log("mod easy", easyIvl, modEasyIvl);
+    if (states.easy.normal?.review) {
+      states.easy.normal.review.scheduledDays = modEasyIvl;
     }
+  }
 }
 
 function get_seed() {
-    if (!customData.again.s | !customData.hard.s | !customData.good.s | !customData.easy.s) {
-        if (typeof ctx !== 'undefined' && ctx.seed) {
-            return ctx.seed;
-        } else {
-            return document.getElementById("qa").innerText;
-        }
+  if (
+    !customData.again.s |
+    !customData.hard.s |
+    !customData.good.s |
+    !customData.easy.s
+  ) {
+    if (typeof ctx !== "undefined" && ctx.seed) {
+      return ctx.seed;
     } else {
-        return customData.good.s;
+      return document.getElementById("qa").innerText;
     }
+  } else {
+    return customData.good.s;
+  }
 }
 function setFuzzFactor() {
   // Note: Originally copied from seedrandom.js package (https://github.com/davidbau/seedrandom)
-  !function(f,a,c){var s,l=256,p="random",d=c.pow(l,6),g=c.pow(2,52),y=2*g,h=l-1;function n(n,t,r){function e(){for(var n=u.g(6),t=d,r=0;n<g;)n=(n+r)*l,t*=l,r=u.g(1);for(;y<=n;)n/=2,t/=2,r>>>=1;return(n+r)/t}var o=[],i=j(function n(t,r){var e,o=[],i=typeof t;if(r&&"object"==i)for(e in t)try{o.push(n(t[e],r-1))}catch(n){}return o.length?o:"string"==i?t:t+"\0"}((t=1==t?{entropy:!0}:t||{}).entropy?[n,S(a)]:null==n?function(){try{var n;return s&&(n=s.randomBytes)?n=n(l):(n=new Uint8Array(l),(f.crypto||f.msCrypto).getRandomValues(n)),S(n)}catch(n){var t=f.navigator,r=t&&t.plugins;return[+new Date,f,r,f.screen,S(a)]}}():n,3),o),u=new m(o);return e.int32=function(){return 0|u.g(4)},e.quick=function(){return u.g(4)/4294967296},e.double=e,j(S(u.S),a),(t.pass||r||function(n,t,r,e){return e&&(e.S&&v(e,u),n.state=function(){return v(u,{})}),r?(c[p]=n,t):n})(e,i,"global"in t?t.global:this==c,t.state)}function m(n){var t,r=n.length,u=this,e=0,o=u.i=u.j=0,i=u.S=[];for(r||(n=[r++]);e<l;)i[e]=e++;for(e=0;e<l;e++)i[e]=i[o=h&o+n[e%r]+(t=i[e])],i[o]=t;(u.g=function(n){for(var t,r=0,e=u.i,o=u.j,i=u.S;n--;)t=i[e=h&e+1],r=r*l+i[h&(i[e]=i[o=h&o+t])+(i[o]=t)];return u.i=e,u.j=o,r})(l)}function v(n,t){return t.i=n.i,t.j=n.j,t.S=n.S.slice(),t}function j(n,t){for(var r,e=n+"",o=0;o<e.length;)t[h&o]=h&(r^=19*t[h&o])+e.charCodeAt(o++);return S(t)}function S(n){return String.fromCharCode.apply(0,n)}if(j(c.random(),a),"object"==typeof module&&module.exports){module.exports=n;try{s=require("crypto")}catch(n){}}else"function"==typeof define&&define.amd?define(function(){return n}):c["seed"+p]=n}("undefined"!=typeof self?self:this,[],Math);
+  !(function (f, a, c) {
+    var s,
+      l = 256,
+      p = "random",
+      d = c.pow(l, 6),
+      g = c.pow(2, 52),
+      y = 2 * g,
+      h = l - 1;
+    function n(n, t, r) {
+      function e() {
+        for (var n = u.g(6), t = d, r = 0; n < g; )
+          (n = (n + r) * l), (t *= l), (r = u.g(1));
+        for (; y <= n; ) (n /= 2), (t /= 2), (r >>>= 1);
+        return (n + r) / t;
+      }
+      var o = [],
+        i = j(
+          (function n(t, r) {
+            var e,
+              o = [],
+              i = typeof t;
+            if (r && "object" == i)
+              for (e in t)
+                try {
+                  o.push(n(t[e], r - 1));
+                } catch (n) {}
+            return o.length ? o : "string" == i ? t : t + "\0";
+          })(
+            (t = 1 == t ? { entropy: !0 } : t || {}).entropy
+              ? [n, S(a)]
+              : null == n
+              ? (function () {
+                  try {
+                    var n;
+                    return (
+                      s && (n = s.randomBytes)
+                        ? (n = n(l))
+                        : ((n = new Uint8Array(l)),
+                          (f.crypto || f.msCrypto).getRandomValues(n)),
+                      S(n)
+                    );
+                  } catch (n) {
+                    var t = f.navigator,
+                      r = t && t.plugins;
+                    return [+new Date(), f, r, f.screen, S(a)];
+                  }
+                })()
+              : n,
+            3
+          ),
+          o
+        ),
+        u = new m(o);
+      return (
+        (e.int32 = function () {
+          return 0 | u.g(4);
+        }),
+        (e.quick = function () {
+          return u.g(4) / 4294967296;
+        }),
+        (e.double = e),
+        j(S(u.S), a),
+        (
+          t.pass ||
+          r ||
+          function (n, t, r, e) {
+            return (
+              e &&
+                (e.S && v(e, u),
+                (n.state = function () {
+                  return v(u, {});
+                })),
+              r ? ((c[p] = n), t) : n
+            );
+          }
+        )(e, i, "global" in t ? t.global : this == c, t.state)
+      );
+    }
+    function m(n) {
+      var t,
+        r = n.length,
+        u = this,
+        e = 0,
+        o = (u.i = u.j = 0),
+        i = (u.S = []);
+      for (r || (n = [r++]); e < l; ) i[e] = e++;
+      for (e = 0; e < l; e++)
+        (i[e] = i[(o = h & (o + n[e % r] + (t = i[e])))]), (i[o] = t);
+      (u.g = function (n) {
+        for (var t, r = 0, e = u.i, o = u.j, i = u.S; n--; )
+          (t = i[(e = h & (e + 1))]),
+            (r = r * l + i[h & ((i[e] = i[(o = h & (o + t))]) + (i[o] = t))]);
+        return (u.i = e), (u.j = o), r;
+      })(l);
+    }
+    function v(n, t) {
+      return (t.i = n.i), (t.j = n.j), (t.S = n.S.slice()), t;
+    }
+    function j(n, t) {
+      for (var r, e = n + "", o = 0; o < e.length; )
+        t[h & o] = h & ((r ^= 19 * t[h & o]) + e.charCodeAt(o++));
+      return S(t);
+    }
+    function S(n) {
+      return String.fromCharCode.apply(0, n);
+    }
+    if ((j(c.random(), a), "object" == typeof module && module.exports)) {
+      module.exports = n;
+      try {
+        s = require("crypto");
+      } catch (n) {}
+    } else
+      "function" == typeof define && define.amd
+        ? define(function () {
+            return n;
+          })
+        : (c["seed" + p] = n);
+  })("undefined" != typeof self ? self : this, [], Math);
   // MIT License
   // Copyright 2019 David Bau.
   // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -431,24 +567,102 @@ if (log) console.log(JSON.stringify(customData, null, 4));
 // Store data we want to show in the card back
 // or just access in either front or back
 function storeData() {
-    // v1.1.8 - https://github.com/SimonLammer/anki-persistence/blob/584396fea9dea0921011671a47a0fdda19265e62/script.js
-    if (void 0 === window.Persistence) { var e = "github.com/SimonLammer/anki-persistence/", t = "_default"; if (window.Persistence_sessionStorage = function () { var i = !1; try { "object" == typeof window.sessionStorage && (i = !0, this.clear = function () { for (var t = 0; t < sessionStorage.length; t++) { var i = sessionStorage.key(t); 0 == i.indexOf(e) && (sessionStorage.removeItem(i), t--) } }, this.setItem = function (i, n) { void 0 == n && (n = i, i = t), sessionStorage.setItem(e + i, JSON.stringify(n)) }, this.getItem = function (i) { return void 0 == i && (i = t), JSON.parse(sessionStorage.getItem(e + i)) }, this.removeItem = function (i) { void 0 == i && (i = t), sessionStorage.removeItem(e + i) }, this.getAllKeys = function () { for (var t = [], i = Object.keys(sessionStorage), n = 0; n < i.length; n++) { var s = i[n]; 0 == s.indexOf(e) && t.push(s.substring(e.length, s.length)) } return t.sort() }) } catch (n) { } this.isAvailable = function () { return i } }, window.Persistence_windowKey = function (i) { var n = window[i], s = !1; "object" == typeof n && (s = !0, this.clear = function () { n[e] = {} }, this.setItem = function (i, s) { void 0 == s && (s = i, i = t), n[e][i] = s }, this.getItem = function (i) { return void 0 == i && (i = t), void 0 == n[e][i] ? null : n[e][i] }, this.removeItem = function (i) { void 0 == i && (i = t), delete n[e][i] }, this.getAllKeys = function () { return Object.keys(n[e]) }, void 0 == n[e] && this.clear()), this.isAvailable = function () { return s } }, window.Persistence = new Persistence_sessionStorage, Persistence.isAvailable() || (window.Persistence = new Persistence_windowKey("py")), !Persistence.isAvailable()) { var i = window.location.toString().indexOf("title"), n = window.location.toString().indexOf("main", i); i > 0 && n > 0 && n - i < 10 && (window.Persistence = new Persistence_windowKey("qt")) } }
-
-    if (Persistence.isAvailable()) {
-        Persistence.setItem(
-            "customData",
-            currentCustomData
-        );
-        Persistence.setItem(
-          "schedulerStatusHTML",
-          document.getElementById("scheduler_status_container")?.outerHTML
-        );
-        Persistence.setItem(
-          "schedulerStatusStyle",
-          document.getElementById("scheduler_status_style")?.outerHTML
-        );
-        // Fire a custom event to notify that template code can listen to and then try
-        // to get the data (Only works on AnkiDroid)
-        window.dispatchEvent(new Event("SchedulerDataStored"));
+  // v1.1.8 - https://github.com/SimonLammer/anki-persistence/blob/584396fea9dea0921011671a47a0fdda19265e62/script.js
+  if (void 0 === window.Persistence) {
+    var e = "github.com/SimonLammer/anki-persistence/",
+      t = "_default";
+    if (
+      ((window.Persistence_sessionStorage = function () {
+        var i = !1;
+        try {
+          "object" == typeof window.sessionStorage &&
+            ((i = !0),
+            (this.clear = function () {
+              for (var t = 0; t < sessionStorage.length; t++) {
+                var i = sessionStorage.key(t);
+                0 == i.indexOf(e) && (sessionStorage.removeItem(i), t--);
+              }
+            }),
+            (this.setItem = function (i, n) {
+              void 0 == n && ((n = i), (i = t)),
+                sessionStorage.setItem(e + i, JSON.stringify(n));
+            }),
+            (this.getItem = function (i) {
+              return (
+                void 0 == i && (i = t),
+                JSON.parse(sessionStorage.getItem(e + i))
+              );
+            }),
+            (this.removeItem = function (i) {
+              void 0 == i && (i = t), sessionStorage.removeItem(e + i);
+            }),
+            (this.getAllKeys = function () {
+              for (
+                var t = [], i = Object.keys(sessionStorage), n = 0;
+                n < i.length;
+                n++
+              ) {
+                var s = i[n];
+                0 == s.indexOf(e) && t.push(s.substring(e.length, s.length));
+              }
+              return t.sort();
+            }));
+        } catch (n) {}
+        this.isAvailable = function () {
+          return i;
+        };
+      }),
+      (window.Persistence_windowKey = function (i) {
+        var n = window[i],
+          s = !1;
+        "object" == typeof n &&
+          ((s = !0),
+          (this.clear = function () {
+            n[e] = {};
+          }),
+          (this.setItem = function (i, s) {
+            void 0 == s && ((s = i), (i = t)), (n[e][i] = s);
+          }),
+          (this.getItem = function (i) {
+            return void 0 == i && (i = t), void 0 == n[e][i] ? null : n[e][i];
+          }),
+          (this.removeItem = function (i) {
+            void 0 == i && (i = t), delete n[e][i];
+          }),
+          (this.getAllKeys = function () {
+            return Object.keys(n[e]);
+          }),
+          void 0 == n[e] && this.clear()),
+          (this.isAvailable = function () {
+            return s;
+          });
+      }),
+      (window.Persistence = new Persistence_sessionStorage()),
+      Persistence.isAvailable() ||
+        (window.Persistence = new Persistence_windowKey("py")),
+      !Persistence.isAvailable())
+    ) {
+      var i = window.location.toString().indexOf("title"),
+        n = window.location.toString().indexOf("main", i);
+      i > 0 &&
+        n > 0 &&
+        n - i < 10 &&
+        (window.Persistence = new Persistence_windowKey("qt"));
     }
+  }
+
+  if (Persistence.isAvailable()) {
+    Persistence.setItem("customData", currentCustomData);
+    Persistence.setItem(
+      "schedulerStatusHTML",
+      document.getElementById("scheduler_status_container")?.outerHTML
+    );
+    Persistence.setItem(
+      "schedulerStatusStyle",
+      document.getElementById("scheduler_status_style")?.outerHTML
+    );
+    // Fire a custom event to notify that template code can listen to and then try
+    // to get the data (Only works on AnkiDroid)
+    window.dispatchEvent(new Event("SchedulerDataStored"));
+  }
 }

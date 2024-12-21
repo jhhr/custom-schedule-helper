@@ -11,18 +11,20 @@ from anki.lang import _
 from aqt.utils import getFile, getSaveFile
 from ast import literal_eval
 
+
 def announce(announcement):
     msg = QMessageBox(mw)
     msg.setStandardButtons(QMessageBox.Ok)
     msg.setText(_(announcement))
     msg.exec_()
 
+
 def export_ease_factors(deck_id):
-    '''Saves a deck's ease factors using file picker.
+    """Saves a deck's ease factors using file picker.
 
     For some deck `deck_id`, prompts to save a file containing a
     dictionary that links card id keys to ease factors.
-    '''
+    """
     deck_name = mw.col.decks.name_if_exists(deck_id)
     if deck_name is None:
         return
@@ -30,10 +32,9 @@ def export_ease_factors(deck_id):
     # open file picker to store factors
     dt_now_str = str(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     suggested_filename = "ease_factors_" + str(deck_id) + dt_now_str
-    export_file = getSaveFile(mw, _("Export"), "export",
-                              key="",
-                              ext="",
-                              fname=suggested_filename)
+    export_file = getSaveFile(
+        mw, _("Export"), "export", key="", ext="", fname=suggested_filename
+    )
     if not export_file:
         return
 
@@ -42,13 +43,13 @@ def export_ease_factors(deck_id):
     for card_id in card_ids:
         card = mw.col.getCard(card_id)
         factors[card_id] = card.factor
-    with open(export_file, 'w') as export_file_object:
+    with open(export_file, "w") as export_file_object:
         export_file_object.write(str(factors))
     announce("Export complete!")
 
 
 def import_ease_factors(deck_id, factors=None):
-    '''Resets ease factors in a deck to a saved state.
+    """Resets ease factors in a deck to a saved state.
 
     For deck `deck_id` and `factors`--a dictionary linking card id keys
     to ease factors--set the ease factors of the cards in the deck to the
@@ -56,7 +57,7 @@ def import_ease_factors(deck_id, factors=None):
 
     If factors is not provided, prompt user to load a file of ease values,
     such as one saved by `export_ease_factors()`.
-    '''
+    """
     deck_name = mw.col.decks.name_if_exists(deck_id)
     if deck_name is None:
         print("Deck name not found on import_ease_factors, exiting...")
@@ -64,12 +65,11 @@ def import_ease_factors(deck_id, factors=None):
 
     if factors is None:
         # open file picker to load factors
-        import_file = getFile(mw, _("Import"), None,
-                              filter="*", key="import")
+        import_file = getFile(mw, _("Import"), None, filter="*", key="import")
         if import_file == []:
             # no file selected
             return
-        with open(import_file, 'r') as import_file_object:
+        with open(import_file, "r") as import_file_object:
             factors = literal_eval(import_file_object.read())
 
     card_ids = mw.col.find_cards(f'deck:"{deck_name}"')

@@ -73,8 +73,8 @@ class Scheduler:
         for day in list(self.due_cnt_perday_from_first_day.keys()):
             if day < mw.col.sched.today:
                 self.due_cnt_perday_from_first_day[mw.col.sched.today] = (
-                        self.due_cnt_perday_from_first_day.get(mw.col.sched.today, 0)
-                        + self.due_cnt_perday_from_first_day[day]
+                    self.due_cnt_perday_from_first_day.get(mw.col.sched.today, 0)
+                    + self.due_cnt_perday_from_first_day[day]
                 )
                 self.due_cnt_perday_from_first_day.pop(day)
         self.learned_cnt_perday_from_today = {
@@ -121,8 +121,8 @@ class Scheduler:
                 )
                 num_cards = due_cards + rated_cards
                 if (
-                        num_cards < min_num_cards
-                        and due_date.weekday() not in self.free_days
+                    num_cards < min_num_cards
+                    and due_date.weekday() not in self.free_days
                 ):
                     best_ivl = check_ivl
                     min_num_cards = num_cards
@@ -132,7 +132,9 @@ class Scheduler:
         card = self.card
 
         # Get all revs, including manual reschedules
-        revs = mw.col.db.all("SELECT ivl, ease, factor, type FROM revlog WHERE cid = ?", card.id)
+        revs = mw.col.db.all(
+            "SELECT ivl, ease, factor, type FROM revlog WHERE cid = ?", card.id
+        )
         if len(revs) > 1:
             prev_rev = revs[len(revs) - 1]
         else:
@@ -161,8 +163,7 @@ class Scheduler:
             if custom_data and "sr" in custom_data:
                 success_rate = custom_data["sr"]
                 mod_again_mult = max(
-                    rev_conf["deck_again_fct"] - (1 - success_rate),
-                    self.min_again_mult
+                    rev_conf["deck_again_fct"] - (1 - success_rate), self.min_again_mult
                 )
                 mod_ivl = min(card.ivl, prev_ivl * mod_again_mult)
                 new_interval = self.apply_fuzz(mod_ivl)
@@ -176,9 +177,9 @@ class Scheduler:
                     print("prev_factor", prev_factor)
                     print("mod_ivl", mod_ivl)
                     print("new_interval", new_interval)
-                  # Again doesn't use the factor and the multiplier is always <=1
-                  # We don't apply the days_upper limit here, because that'd increase the interval
-                  # So, return right away
+                # Again doesn't use the factor and the multiplier is always <=1
+                # We don't apply the days_upper limit here, because that'd increase the interval
+                # So, return right away
                 return min(int(round(new_interval)), 1)
             else:
                 # Success rate missing
@@ -233,7 +234,7 @@ def reschedule(did, recent=False, filter_flag=False, filtered_cids=[]):
         mw.progress.finish()
         (result_msg, err_msgs) = future.result()
         tooltip(f"{result_msg} in {time.time() - start_time:.2f} seconds")
-        if (len(err_msgs) > 0):
+        if len(err_msgs) > 0:
             showWarning("\n".join(err_msgs))
         mw.reset()
 
@@ -269,11 +270,16 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
 
     cnt = 0
     err_msgs = []
-    skip_dids = { mw.col.decks.by_name(skip_deck_name)['id']: True for skip_deck_name in skip_decks}
-    
+    skip_dids = {
+        mw.col.decks.by_name(skip_deck_name)["id"]: True
+        for skip_deck_name in skip_decks
+    }
+
     decks = sorted(
-        filter(lambda d: not skip_dids.get(d['id'], False), mw.col.decks.all()),
-        key=lambda d: d['name'], reverse=True)
+        filter(lambda d: not skip_dids.get(d["id"], False), mw.col.decks.all()),
+        key=lambda d: d["name"],
+        reverse=True,
+    )
 
     scheduler = Scheduler()
 
@@ -283,19 +289,20 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
 
     cancelled = False
     DM = DeckManager(mw.col)
-    
-    
+
     # Is this a single deck reschedule from deck menu?
     single_deck_name = None
     if did is not None:
-        single_deck_name = mw.col.decks.get(did)['name']
-
+        single_deck_name = mw.col.decks.get(did)["name"]
 
     for deck in decks:
         # IF we're targeting a single deck, skip all other decks except that one and its subdecks
-        if single_deck_name is not None and not deck['name'].startswith(single_deck_name): continue
+        if single_deck_name is not None and not deck["name"].startswith(
+            single_deck_name
+        ):
+            continue
 
-        cur_deck_param = get_current_deck_parameter(deck['name'], deck_parameters)
+        cur_deck_param = get_current_deck_parameter(deck["name"], deck_parameters)
 
         if cur_deck_param is None:
             err_msgs.append(
@@ -311,9 +318,7 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
         if recent:
             today_cutoff = mw.col.sched.day_cutoff
             day_before_cutoff = today_cutoff - (config.days_to_reschedule + 1) * 86400
-            recent_query = (
-                f"AND id IN (SELECT cid FROM revlog WHERE id >= {day_before_cutoff * 1000})"
-            )
+            recent_query = f"AND id IN (SELECT cid FROM revlog WHERE id >= {day_before_cutoff * 1000})"
 
         filter_query = None
         if filter_flag and len(filtered_cids) > 0:
@@ -324,7 +329,9 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
         # or dispersed by another Anki instance running this addon
         # But when running reschedule from the deck menu or main menu, we will reschedule again
         if filter_flag:
-            not_already_rescheduled_query = f"AND json_extract(json_extract(data, '$.cd'), '$.v') NOT IN ('r', 'd')"
+            not_already_rescheduled_query = (
+                f"AND json_extract(json_extract(data, '$.cd'), '$.v') NOT IN ('r', 'd')"
+            )
 
         cards = mw.col.db.all(
             f"""
@@ -348,10 +355,10 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
         # x[2]: max interval
         cards = map(
             lambda x: (
-                    x
-                    + [
-                        DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
-                    ]
+                x
+                + [
+                    DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
+                ]
             ),
             cards,
         )
@@ -368,14 +375,14 @@ def reschedule_background(did, recent=False, filter_flag=False, filtered_cids=[]
             cnt += 1
             if cnt % 500 == 0:
                 mw.taskman.run_on_main(
-                    lambda: mw.progress.update(value=cnt, label=f"{cnt} cards rescheduled")
+                    lambda: mw.progress.update(
+                        value=cnt, label=f"{cnt} cards rescheduled"
+                    )
                 )
                 if mw.progress.want_cancel():
                     cancelled = True
 
     return (f"{cnt} cards rescheduled", err_msgs)
-
-
 
 
 def reschedule_card(cid, scheduler: Scheduler):
@@ -393,6 +400,6 @@ def reschedule_card(cid, scheduler: Scheduler):
         if scheduler.enable_load_balance:
             scheduler.due_cnt_perday_from_first_day[due_before] -= 1
             scheduler.due_cnt_perday_from_first_day[due_after] = (
-                    scheduler.due_cnt_perday_from_first_day.get(due_after, 0) + 1
+                scheduler.due_cnt_perday_from_first_day.get(due_after, 0) + 1
             )
     return card

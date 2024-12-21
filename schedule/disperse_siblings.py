@@ -94,10 +94,10 @@ def get_siblings_when_review(card: Card):
     )
     siblings = map(
         lambda x: x
-                  + [
-                      config.target_ratio,
-                      mw.col.decks.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
-                  ],
+        + [
+            config.target_ratio,
+            mw.col.decks.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
+        ],
         siblings,
     )
     return list(siblings)
@@ -148,7 +148,7 @@ def disperse(siblings):
 
 
 def disperse_siblings(
-        did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
+    did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
 ):
     start_time = time.time()
 
@@ -168,7 +168,7 @@ def disperse_siblings(
 
 
 def disperse_siblings_backgroud(
-        did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
+    did, filter_flag=False, filtered_nid_string="", text_from_reschedule=""
 ):
     config = Config()
     config.load()

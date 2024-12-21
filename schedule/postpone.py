@@ -14,7 +14,7 @@ from aqt.qt import (
     QGridLayout,
     QLabel,
     QLineEdit,
-    QDialogButtonBox
+    QDialogButtonBox,
 )
 from aqt.utils import tooltip, getText, showWarning
 
@@ -59,7 +59,9 @@ class PostPoneDialog(QDialog):
 
         self.bottom_layout = QVBoxLayout()
         self.main_layout.addLayout(self.bottom_layout)
-        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         self.bottom_layout.addWidget(self.button_box)
@@ -72,7 +74,8 @@ class PostPoneDialog(QDialog):
         if RepresentsInt(interval):
             interval = int(interval)
             self.interval_view.setText(
-                f"{len(list(filter(lambda x: x[3] >= interval, self.cards)))} cards with interval greater than {interval}.")
+                f"{len(list(filter(lambda x: x[3] >= interval, self.cards)))} cards with interval greater than {interval}."
+            )
         else:
             self.interval_view.setText("")
 
@@ -137,34 +140,40 @@ def postpone(did=None, card_ids=None, parent=None):
     # x[5]: max interval
     cards = map(
         lambda x: (
-                x
-                + [
-                    DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
-                ]
+            x
+            + [
+                DM.config_dict_for_deck_id(x[1])["rev"]["maxIvl"],
+            ]
         ),
         cards,
     )
     # sort by interval (ascending)
     cards = sorted(cards, key=lambda x: x[3])
-    safe_cnt = len(
-        list(filter(lambda x: x[4] / x[3] - 1 < 0.25, cards))
-    )
+    safe_cnt = len(list(filter(lambda x: x[4] / x[3] - 1 < 0.25, cards)))
 
     # If we're in the card browser, don't show the dialog as we're selecting the cards to postpone there
     if card_ids is None:
         res = get_desired_postpone_def_with_response(safe_cnt, did, cards)
         print(res)
         if res is None:
-            showWarning("Please enter the number of cards or interval by which you want to postpone.")
+            showWarning(
+                "Please enter the number of cards or interval by which you want to postpone."
+            )
             return
         else:
             (desired_postpone_cnt, desired_postpone_interval) = res
             print(desired_postpone_cnt, desired_postpone_interval)
-            if desired_postpone_cnt is not None and desired_postpone_interval is not None:
-                showWarning("Please enter only either the number of cards or the interval.")
+            if (
+                desired_postpone_cnt is not None
+                and desired_postpone_interval is not None
+            ):
+                showWarning(
+                    "Please enter only either the number of cards or the interval."
+                )
                 return
-            if ((desired_postpone_cnt is not None and desired_postpone_cnt <= 0)
-                    or (desired_postpone_interval is not None and desired_postpone_interval <= 0)):
+            if (desired_postpone_cnt is not None and desired_postpone_cnt <= 0) or (
+                desired_postpone_interval is not None and desired_postpone_interval <= 0
+            ):
                 showWarning("Please enter a positive integer.")
                 return
 
@@ -176,7 +185,7 @@ def postpone(did=None, card_ids=None, parent=None):
         else:
             # filter cards to desired_postpone_cnt, cutting off from the beginning
             if desired_postpone_cnt < len(cards):
-                cards = cards[len(cards) - desired_postpone_cnt:len(cards)]
+                cards = cards[len(cards) - desired_postpone_cnt : len(cards)]
 
     undo_entry = mw.col.add_custom_undo_entry("Postpone")
 
@@ -202,18 +211,25 @@ def postpone(did=None, card_ids=None, parent=None):
             # Randomly add a multiplier between 0 and 0.50, giving bigger variance with smaller elapsed days
             # and then reduce the randomness as we go past 7 days.
             random_mult = 0.25 * random.random() * max((min(1, 7 / elapsed_days)), 2)
-            mult = 1 + (((base_mult + random_mult)
-                         # Reduce the multiplier as elapsed days closes to 90 days, at  which point it'll be 1.
-                         * (1 - elapsed_days / 90) + (elapsed_days / 90) * 0.05
-                         # Additionally reduce the multiplier when were close to small elapsed days like 3
-                         ) * (min(1, elapsed_days / 7)))
+            mult = 1 + (
+                (
+                    (base_mult + random_mult)
+                    # Reduce the multiplier as elapsed days closes to 90 days, at  which point it'll be 1.
+                    * (1 - elapsed_days / 90)
+                    + (elapsed_days / 90) * 0.05
+                    # Additionally reduce the multiplier when were close to small elapsed days like 3
+                )
+                * (min(1, elapsed_days / 7))
+            )
             new_ivl = min(
                 max_ivl,  # Don't go over the maximum interval
                 max(
                     1,  # Don't set interval to less than 1
-                    math.floor(elapsed_days * mult),  # Postpone by a percentage of elapsed days
-                    elapsed_days  # Don't lower the due date
-                )
+                    math.floor(
+                        elapsed_days * mult
+                    ),  # Postpone by a percentage of elapsed days
+                    elapsed_days,  # Don't lower the due date
+                ),
             )
             # Set the increment to the maximum of the new interval and the elapsed days we've postponed
             # so far, thus when start postponing in 1 day increments, we'll start from the next day after
@@ -223,9 +239,7 @@ def postpone(did=None, card_ids=None, parent=None):
         else:
             ivl_incr += 1
             # This card is postponed by 1 more day, the next by 2 more days, and so on.
-            new_ivl = min(
-                elapsed_days + ivl_incr, max_ivl
-            )
+            new_ivl = min(elapsed_days + ivl_incr, max_ivl)
             msg += f" Fixed increment, New IVL: {new_ivl}, IVL incr: {ivl_incr}"
         print(msg)
         card = update_card_due_ivl(card, new_ivl)
@@ -234,8 +248,6 @@ def postpone(did=None, card_ids=None, parent=None):
         mw.col.merge_undo_entries(undo_entry)
         cnt += 1
 
-    tooltip(
-        f"""{cnt} cards postponed in {time.time() - start_time:.2f} seconds."""
-    )
+    tooltip(f"""{cnt} cards postponed in {time.time() - start_time:.2f} seconds.""")
     mw.progress.finish()
     mw.reset()

@@ -20,9 +20,7 @@ def get_desired_advance_cnt_with_response(safe_cnt, did):
     inquire_text = "Enter the number of cards to be advanced.\n"
     notification_text = f"{'For this deck' if did else 'For this collection'}, it is relatively safe to advance up to {safe_cnt} cards.\n"
     warning_text = "You can advance more cards if you wish, but it is not recommended.\nKeep in mind that whenever you use Postpone or Advance, you depart from the optimal scheduling.\n"
-    info_text = (
-        "This feature only affects the cards that have been scheduled by Custom Schedule."
-    )
+    info_text = "This feature only affects the cards that have been scheduled by Custom Schedule."
     (s, r) = getText(
         inquire_text + notification_text + warning_text + info_text, default="10"
     )
@@ -64,9 +62,7 @@ def advance(did):
 
     # sort by (elapsed_days / interval - 1), -interval (ascending)
     cards = sorted(cards, key=lambda x: (x[4] / x[3] - 1, -x[3]))
-    safe_cnt = len(
-        list(filter(lambda x: x[4] / x[3] - 1- 1 < 0.15, cards))
-    )
+    safe_cnt = len(list(filter(lambda x: x[4] / x[3] - 1 - 1 < 0.15, cards)))
 
     (desired_advance_cnt, resp) = get_desired_advance_cnt_with_response(safe_cnt, did)
     if desired_advance_cnt is None:
@@ -77,7 +73,7 @@ def advance(did):
         if desired_advance_cnt <= 0:
             showWarning("Please enter a positive integer.")
             return
- 
+
     undo_entry = mw.col.add_custom_undo_entry("Advance")
 
     mw.progress.start()
@@ -97,9 +93,6 @@ def advance(did):
         mw.col.merge_undo_entries(undo_entry)
         cnt += 1
 
-
-    tooltip(
-        f"""{cnt} cards advanced in {time.time() - start_time:.2f} seconds."""
-    )
+    tooltip(f"""{cnt} cards advanced in {time.time() - start_time:.2f} seconds.""")
     mw.progress.finish()
     mw.reset()
