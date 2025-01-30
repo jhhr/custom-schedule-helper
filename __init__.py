@@ -5,7 +5,7 @@ from aqt.browser import Browser
 from aqt.gui_hooks import (
     deck_browser_will_show_options_menu,
     state_did_change,
-    browser_will_show_context_menu
+    browser_will_show_context_menu,
 )
 from aqt.qt import QAction, qconnect, QMenu
 
@@ -110,9 +110,7 @@ def set_load_balance(checked):
     config.load_balance = checked
 
 
-menu_load_balance = checkable(
-    title="Load Balance when rescheduling", on_click=set_load_balance
-)
+menu_load_balance = checkable(title="Load Balance when rescheduling", on_click=set_load_balance)
 
 
 def reschedule_recent(did):
@@ -129,7 +127,7 @@ menu_reschedule_recent = build_action(
 )
 add_action_to_gear(
     reschedule_recent,
-    lambda: f"Reschedule cards reviewed the last {config.days_to_reschedule} days"
+    lambda: f"Reschedule cards reviewed the last {config.days_to_reschedule} days",
 )
 menu_postpone = build_action(postpone, "Postpone cards in all decks")
 add_action_to_gear(postpone, lambda: "Postpone cards")
@@ -150,10 +148,11 @@ menu_adjust_ease = build_action(adjust_ease, "Adjust ease factors in all decks")
 add_action_to_gear(adjust_ease, lambda: "Adjust ease factor for all cards")
 menu_adjust_ease_recent = build_action(
     adjust_ease_recent,
-    f"Adjust ease factors for cards reviewed in the last {config.days_to_reschedule} days", )
+    f"Adjust ease factors for cards reviewed in the last {config.days_to_reschedule} days",
+)
 add_action_to_gear(
     adjust_ease_recent,
-    lambda: f"Adjust ease factors for cards reviewed in the last {config.days_to_reschedule} days"
+    lambda: f"Adjust ease factors for cards reviewed in the last {config.days_to_reschedule} days",
 )
 
 menu_disperse_siblings = build_action(disperse_siblings, "Disperse all siblings")
@@ -163,9 +162,7 @@ menu_for_helper.addAction(menu_auto_reschedule_after_sync)
 menu_for_helper.addAction(menu_auto_disperse_after_sync)
 menu_for_helper.addAction(menu_auto_disperse)
 menu_for_helper.addAction(menu_load_balance)
-menu_for_free_days = menu_for_helper.addMenu(
-    "No Anki on Free Days (requires Load Balancing)"
-)
+menu_for_free_days = menu_for_helper.addMenu("No Anki on Free Days (requires Load Balancing)")
 menu_for_helper.addSeparator()
 menu_for_helper.addAction(menu_reschedule)
 menu_for_helper.addAction(menu_reschedule_recent)
@@ -237,6 +234,7 @@ def on_browser_will_show_context_menu(browser: Browser, menu: QMenu):
 
 browser_will_show_context_menu.append(on_browser_will_show_context_menu)
 
+
 @state_did_change.append
 def state_did_change(_next_state, _previous_state):
     adjust_menu()
@@ -250,4 +248,4 @@ def configuration_changed():
 
 init_sync_hook()
 init_schedule_review_hook()
-init_ease_adjust_review_hook()
+# init_ease_adjust_review_hook()

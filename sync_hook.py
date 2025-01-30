@@ -19,16 +19,15 @@ def create_comparelog(local_rids: List[int], texts: List[str]) -> None:
 
 def review_cid_remote(remote_reviewed_cids: List[int], local_rids: List[int]):
     local_rid_string = ids2str(local_rids)
-    remote_reviewed_cids.extend([
-        cid
-        for cid in mw.col.db.list(
-            f"""SELECT DISTINCT cid
+    remote_reviewed_cids.extend(
+        [
+            cid for cid in mw.col.db.list(f"""SELECT DISTINCT cid
             FROM revlog
             WHERE id NOT IN {local_rid_string}
             AND type < 4
-            """
-        )  # type: 0=Learning, 1=Review, 2=relearn, 3=filtered, 4=Manual
-    ])
+            """)  # type: 0=Learning, 1=Review, 2=relearn, 3=filtered, 4=Manual
+        ]
+    )
 
 
 def auto_reschedule(remote_reviewed_cids: List[int], texts: List[str]):
@@ -61,15 +60,10 @@ def auto_disperse(remote_reviewed_cids: List[int], texts: List[str]):
         return
 
     remote_reviewed_cid_string = ids2str(remote_reviewed_cids)
-    remote_reviewed_nids = [
-        nid
-        for nid in mw.col.db.list(
-            f"""SELECT DISTINCT nid 
+    remote_reviewed_nids = [nid for nid in mw.col.db.list(f"""SELECT DISTINCT nid 
             FROM cards 
             WHERE id IN {remote_reviewed_cid_string}
-        """
-        )
-    ]
+        """)]
     remote_reviewed_nid_string = ids2str(remote_reviewed_nids)
 
     fut = disperse_siblings(
@@ -93,7 +87,6 @@ def auto_adjust_ease(remote_reviewed_cids: List[int], texts: List[str]):
     if len(remote_reviewed_cids) == 0:
         return
 
-
     fut = adjust_ease(
         recent=False,
         marked_only=True,
@@ -113,6 +106,6 @@ def init_sync_hook():
     sync_will_start.append(lambda: create_comparelog(local_rids, texts))
     sync_did_finish.append(lambda: review_cid_remote(remote_reviewed_cids, local_rids))
 
-    sync_did_finish.append(lambda: auto_adjust_ease(remote_reviewed_cids, texts))
+    # sync_did_finish.append(lambda: auto_adjust_ease(remote_reviewed_cids, texts))
     sync_did_finish.append(lambda: auto_reschedule(remote_reviewed_cids, texts))
     sync_did_finish.append(lambda: auto_disperse(remote_reviewed_cids, texts))
